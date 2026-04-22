@@ -65,6 +65,10 @@ interface DatasetFormState {
   entries: DatasetEntryDraft[];
 }
 
+type WorkspaceKey = "tasks" | "datasets";
+type TaskSectionKey = "details" | "create" | "correction" | "session";
+type DatasetSectionKey = "latest" | "register" | "history" | "session";
+
 const RECENT_TASKS_KEY = "dataloop.week1.recentTasks";
 const RECENT_DATASETS_KEY = "dataloop.week1.recentDatasets";
 
@@ -75,6 +79,9 @@ export default function App() {
   const [walletChainIdHex, setWalletChainIdHex] = useState<string | null>(null);
   const [walletNotice, setWalletNotice] = useState<NoticeState | null>(null);
   const [isConnectingWallet, setIsConnectingWallet] = useState(false);
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceKey>("tasks");
+  const [activeTaskSection, setActiveTaskSection] = useState<TaskSectionKey>("details");
+  const [activeDatasetSection, setActiveDatasetSection] = useState<DatasetSectionKey>("latest");
 
   const [taskForm, setTaskForm] = useState<TaskFormState>(() => createEmptyTaskForm());
   const [correctionForm, setCorrectionForm] = useState<CorrectionFormState>(createEmptyCorrectionForm);
@@ -252,6 +259,8 @@ export default function App() {
         tone: "success",
         message: `Task ${shortId(result.contractTaskId)} created successfully.`
       });
+      setActiveWorkspace("tasks");
+      setActiveTaskSection("details");
       setTaskForm(createEmptyTaskForm());
       setCorrectionForm((current) => ({ ...current, taskId: result.task.taskId }));
       setTaskLookupId(result.task.taskId);
@@ -293,6 +302,8 @@ export default function App() {
         tone: "success",
         message: `Correction #${result.correction.correctionId} saved successfully.`
       });
+      setActiveWorkspace("tasks");
+      setActiveTaskSection("details");
       setCorrectionForm((current) => ({ ...createEmptyCorrectionForm(), taskId: current.taskId }));
       appendRecentId(setRecentTaskIds, result.correction.taskId);
       setTaskLookupId(result.correction.taskId);
@@ -348,6 +359,8 @@ export default function App() {
         tone: "success",
         message: `Dataset ${shortId(result.dataset.datasetId)} version ${result.version.versionNumber} registered.`
       });
+      setActiveWorkspace("datasets");
+      setActiveDatasetSection("latest");
       setDatasetForm((current) => ({ ...createEmptyDatasetForm(), datasetId: current.datasetId }));
       setDatasetLookupId(result.dataset.datasetId);
       appendRecentId(setRecentDatasetIds, result.dataset.datasetId);
@@ -374,6 +387,8 @@ export default function App() {
 
       setSelectedTask(task);
       setSelectedCorrections(correctionData.corrections);
+      setActiveWorkspace("tasks");
+      setActiveTaskSection("details");
       setTaskViewerNotice({
         tone: "success",
         message: `Loaded task ${shortId(task.taskId)} and ${correctionData.corrections.length} correction(s).`
@@ -399,6 +414,8 @@ export default function App() {
     try {
       const history = await getDatasetHistory(datasetIdValue);
       setDatasetHistory(history);
+      setActiveWorkspace("datasets");
+      setActiveDatasetSection("history");
       setDatasetViewerNotice({
         tone: "success",
         message: `Loaded ${history.versions.length} dataset version(s).`
@@ -418,6 +435,12 @@ export default function App() {
     try {
       const latest = await getLatestDatasetVersion(datasetIdValue);
       setLatestDatasetVersion(latest);
+      setActiveWorkspace("datasets");
+      setActiveDatasetSection("latest");
+      setDatasetViewerNotice({
+        tone: "success",
+        message: `Loaded latest dataset version v${latest.version.versionNumber}.`
+      });
       appendRecentId(setRecentDatasetIds, datasetIdValue);
     } catch (error) {
       setDatasetViewerNotice({ tone: "error", message: formatError(error) });
@@ -436,334 +459,625 @@ export default function App() {
     }));
   }
 
-  return (
-    <main className="app-shell">
-      <section className="hero">
-        <div>
-          <p className="eyebrow">Week 1 Frontend</p>
-          <h1>DataLoop base platform demo console</h1>
-          <p className="copy">
-            Create tasks, submit corrections, register dataset versions, and inspect the
-            canonical records persisted through the Week 1 API and contract flow.
-          </p>
-        </div>
+  const latestDatasetLabel =
+    latestVersion === null ? "Not loaded" : `v${latestVersion.versionNumber}`;
+  const walletStatusLabel = chainMismatch ? "Action needed" : hasWalletConnection ? "Connected" : "Wallet offline";
+  const workspaceTitle = activeWorkspace === "tasks" ? "Task workspace" : "Dataset workspace";
+  const workspaceCopy =
+    activeWorkspace === "tasks"
+      ? "Create base tasks, attach corrections, and inspect the canonical task record without leaving the same surface."
+      : "Register new dataset versions and review version lineage through a focused glass explorer.";
+  const taskSectionItems: WorkspaceSectionNavItem<TaskSectionKey>[] = [
+    { key: "details", label: "Task Details" },
+    { key: "create", label: "Create Task" },
+    { key: "correction", label: "Correction" },
+    { key: "session", label: "Session" }
+  ];
+  const datasetSectionItems: WorkspaceSectionNavItem<DatasetSectionKey>[] = [
+    { key: "latest", label: "Latest View" },
+    { key: "history", label: "History" },
+    { key: "register", label: "Register" },
+    { key: "session", label: "Session" }
+  ];
 
-        <div className="hero-meta">
-          <div className="meta-card">
-            <span className="label">API</span>
-            <strong>{getApiBaseUrl()}</strong>
-          </div>
-          <div className="meta-card">
-            <span className="label">Configured Chain</span>
-            <strong>
-              {walletConfig.chainName} ({walletConfig.chainId})
-            </strong>
-          </div>
-          <div className="meta-card">
-            <span className="label">Wallet</span>
-            <strong>{connectedStateLabel}</strong>
-          </div>
-        </div>
-      </section>
-
-      <div className="dashboard-grid">
-        <div className="column">
-          <Panel
-            title="Wallet Connection"
-            eyebrow="Session"
-            action={
-              <button className="button button-primary" onClick={connectWallet} disabled={isConnectingWallet}>
-                {isConnectingWallet ? "Connecting..." : hasWalletConnection ? "Reconnect" : "Connect Wallet"}
-              </button>
-            }
-          >
-            {walletNotice ? <StatusNotice tone={walletNotice.tone} message={walletNotice.message} /> : null}
-            <div className="detail-grid compact-grid">
-              <Detail label="Injected provider" value={injectedWallet === null ? "Not found" : "Detected"} />
-              <Detail label="Connected account" value={walletAccount ?? "Not connected"} mono />
-              <Detail
-                label="Wallet chain"
-                value={walletChainId === null ? "Unknown" : `${walletChainId} (${walletChainIdHex})`}
-                mono
-              />
-            </div>
-            {chainMismatch ? (
-              <div className="inline-actions">
-                <StatusNotice
-                  tone="error"
-                  message={`Wallet is on chain ${walletChainId}. Switch to ${walletConfig.chainName} to match the configured demo network.`}
-                />
-                <button className="button button-secondary" onClick={handleSwitchNetwork}>
-                  Switch to {walletConfig.chainName}
-                </button>
-              </div>
-            ) : null}
-          </Panel>
-
-          <Panel title="Create Task" eyebrow="Write Flow">
-            {taskNotice ? <StatusNotice tone={taskNotice.tone} message={taskNotice.message} /> : null}
-            <form className="stack" onSubmit={handleCreateTask}>
-              <Field label="Task ID" helper="Use a bytes32 hex value.">
-                <div className="field-row">
-                  <input
-                    value={taskForm.taskId}
-                    onChange={(event) => setTaskForm((current) => ({ ...current, taskId: event.target.value }))}
-                    placeholder="0x..."
-                  />
-                  <button
-                    type="button"
-                    className="button button-secondary"
-                    onClick={() => setTaskForm((current) => ({ ...current, taskId: generateBytes32Hex() }))}
-                  >
-                    Generate
-                  </button>
-                </div>
-              </Field>
-              <Field label="Metadata URI">
-                <input
-                  value={taskForm.metadataUri}
-                  onChange={(event) => setTaskForm((current) => ({ ...current, metadataUri: event.target.value }))}
-                  placeholder="ipfs://task-metadata"
-                />
-              </Field>
-              <Field label="Metadata Hash">
-                <input
-                  value={taskForm.metadataHash}
-                  onChange={(event) => setTaskForm((current) => ({ ...current, metadataHash: event.target.value }))}
-                  placeholder="0x..."
-                />
-              </Field>
-              <Field label="Stake Amount (wei)" helper="Optional. Use a whole-number wei string.">
-                <input
-                  value={taskForm.stakeAmountWei}
-                  onChange={(event) => setTaskForm((current) => ({ ...current, stakeAmountWei: event.target.value }))}
-                  placeholder="0"
-                />
-              </Field>
-              <button className="button button-primary" type="submit" disabled={isCreatingTask}>
-                {isCreatingTask ? "Creating..." : "Create Task"}
-              </button>
-            </form>
-          </Panel>
-
-          <Panel title="Submit Correction" eyebrow="Write Flow">
-            {correctionNotice ? <StatusNotice tone={correctionNotice.tone} message={correctionNotice.message} /> : null}
-            <form className="stack" onSubmit={handleSubmitCorrection}>
-              <Field label="Task ID">
-                <input
-                  value={correctionForm.taskId}
-                  onChange={(event) =>
-                    setCorrectionForm((current) => ({ ...current, taskId: event.target.value }))
-                  }
-                  placeholder="0x..."
-                />
-              </Field>
-              <Field label="Correction Metadata URI">
-                <input
-                  value={correctionForm.metadataUri}
-                  onChange={(event) =>
-                    setCorrectionForm((current) => ({ ...current, metadataUri: event.target.value }))
-                  }
-                  placeholder="ipfs://correction-metadata"
-                />
-              </Field>
-              <Field label="Correction Metadata Hash">
-                <input
-                  value={correctionForm.metadataHash}
-                  onChange={(event) =>
-                    setCorrectionForm((current) => ({ ...current, metadataHash: event.target.value }))
-                  }
-                  placeholder="0x..."
-                />
-              </Field>
-              <Field label="Stake Amount (wei)" helper="Optional.">
-                <input
-                  value={correctionForm.stakeAmountWei}
-                  onChange={(event) =>
-                    setCorrectionForm((current) => ({ ...current, stakeAmountWei: event.target.value }))
-                  }
-                  placeholder="0"
-                />
-              </Field>
-              <button className="button button-primary" type="submit" disabled={isSubmittingCorrection}>
-                {isSubmittingCorrection ? "Submitting..." : "Submit Correction"}
-              </button>
-            </form>
-          </Panel>
-
-          <Panel title="Register Dataset Version" eyebrow="Write Flow">
-            {datasetNotice ? <StatusNotice tone={datasetNotice.tone} message={datasetNotice.message} /> : null}
-            <form className="stack" onSubmit={handleRegisterDatasetVersion}>
-              <Field label="Dataset ID">
-                <div className="field-row">
-                  <input
-                    value={datasetForm.datasetId}
-                    onChange={(event) => setDatasetForm((current) => ({ ...current, datasetId: event.target.value }))}
-                    placeholder="0x..."
-                  />
-                  <button
-                    type="button"
-                    className="button button-secondary"
-                    onClick={() =>
-                      setDatasetForm((current) => ({ ...current, datasetId: generateBytes32Hex() }))
-                    }
-                  >
-                    Generate
-                  </button>
-                </div>
-              </Field>
-              <Field label="Dataset Metadata URI">
-                <input
-                  value={datasetForm.metadataUri}
-                  onChange={(event) => setDatasetForm((current) => ({ ...current, metadataUri: event.target.value }))}
-                  placeholder="ipfs://dataset-version"
-                />
-              </Field>
-              <Field label="Dataset Metadata Hash">
-                <input
-                  value={datasetForm.metadataHash}
-                  onChange={(event) => setDatasetForm((current) => ({ ...current, metadataHash: event.target.value }))}
-                  placeholder="0x..."
-                />
-              </Field>
-              <Field label="Immutable Reference" helper="Optional override.">
-                <input
-                  value={datasetForm.immutableRef}
-                  onChange={(event) => setDatasetForm((current) => ({ ...current, immutableRef: event.target.value }))}
-                  placeholder="dataset-v1-cid"
-                />
-              </Field>
-              <div className="subsection">
-                <div className="subsection-header">
-                  <div>
-                    <p className="label">Dataset Entries</p>
-                    <p className="helper-copy">Reference existing tasks or corrections in order.</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="button button-secondary"
-                    onClick={() =>
-                      setDatasetForm((current) => ({
-                        ...current,
-                        entries: [...current.entries, createDatasetEntryDraft()]
-                      }))
-                    }
-                  >
-                    Add Entry
-                  </button>
-                </div>
-                <div className="stack">
-                  {datasetForm.entries.map((entry, index) => (
-                    <div className="entry-card" key={entry.id}>
-                      <div className="entry-topline">
-                        <strong>Entry {index + 1}</strong>
-                        {datasetForm.entries.length > 1 ? (
-                          <button
-                            type="button"
-                            className="link-button"
-                            onClick={() =>
-                              setDatasetForm((current) => ({
-                                ...current,
-                                entries: current.entries.filter((candidate) => candidate.id !== entry.id)
-                              }))
-                            }
-                          >
-                            Remove
-                          </button>
-                        ) : null}
-                      </div>
-                      <div className="entry-grid">
-                        <label className="field">
-                          <span>Source Type</span>
-                          <select
-                            value={entry.sourceType}
-                            onChange={(event) =>
-                              updateDatasetEntry(entry.id, {
-                                sourceType: event.target.value as "TASK" | "CORRECTION",
-                                referenceId: ""
-                              })
-                            }
-                          >
-                            <option value="TASK">Task</option>
-                            <option value="CORRECTION">Correction</option>
-                          </select>
-                        </label>
-                        <label className="field">
-                          <span>{entry.sourceType === "TASK" ? "Task ID" : "Correction ID"}</span>
-                          <input
-                            value={entry.referenceId}
-                            onChange={(event) => updateDatasetEntry(entry.id, { referenceId: event.target.value })}
-                            placeholder={entry.sourceType === "TASK" ? "0x..." : "1"}
-                          />
-                        </label>
-                        <label className="field">
-                          <span>Entry Metadata URI</span>
-                          <input
-                            value={entry.metadataUri}
-                            onChange={(event) => updateDatasetEntry(entry.id, { metadataUri: event.target.value })}
-                            placeholder="Optional override"
-                          />
-                        </label>
-                        <label className="field">
-                          <span>Entry Metadata Hash</span>
-                          <input
-                            value={entry.metadataHash}
-                            onChange={(event) => updateDatasetEntry(entry.id, { metadataHash: event.target.value })}
-                            placeholder="Optional override"
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <button className="button button-primary" type="submit" disabled={isRegisteringDataset}>
-                {isRegisteringDataset ? "Registering..." : "Register Dataset Version"}
-              </button>
-            </form>
-          </Panel>
-        </div>
-
-        <div className="column">
-          <Panel title="Task Explorer" eyebrow="Read Flow">
-            {taskViewerNotice ? <StatusNotice tone={taskViewerNotice.tone} message={taskViewerNotice.message} /> : null}
-            <div className="stack">
-              <div className="field-row">
-                <input value={taskLookupId} onChange={(event) => setTaskLookupId(event.target.value)} placeholder="Enter task ID to load" />
-                <button
-                  className="button button-primary"
-                  type="button"
-                  onClick={() => taskLookupId.trim().length > 0 && void loadTaskDetail(taskLookupId.trim())}
-                  disabled={isLoadingTask}
-                >
-                  {isLoadingTask ? "Loading..." : "Load"}
-                </button>
-              </div>
-              <RecentIdList title="Recent Tasks" ids={recentTaskIds} onSelect={(value) => { setTaskLookupId(value); void loadTaskDetail(value); }} />
-              {selectedTask ? renderSelectedTask(selectedTask, selectedCorrections) : <EmptyState message="Load a task to inspect its canonical record and corrections." />}
-            </div>
-          </Panel>
-
-          <Panel title="Dataset Explorer" eyebrow="Read Flow">
-            {datasetViewerNotice ? <StatusNotice tone={datasetViewerNotice.tone} message={datasetViewerNotice.message} /> : null}
-            <div className="stack">
-              <div className="field-row">
-                <input value={datasetLookupId} onChange={(event) => setDatasetLookupId(event.target.value)} placeholder="Enter dataset ID to inspect" />
-                <button className="button button-secondary" type="button" onClick={() => datasetLookupId.trim().length > 0 && void loadDatasetHistoryView(datasetLookupId.trim())} disabled={isLoadingDatasetHistory}>
-                  History
-                </button>
-                <button className="button button-primary" type="button" onClick={() => datasetLookupId.trim().length > 0 && void loadLatestDatasetView(datasetLookupId.trim())} disabled={isLoadingLatestDataset}>
-                  Latest
-                </button>
-              </div>
-              <RecentIdList title="Recent Datasets" ids={recentDatasetIds} onSelect={(value) => { setDatasetLookupId(value); void Promise.all([loadDatasetHistoryView(value), loadLatestDatasetView(value)]); }} />
-              {latestVersion && latestDatasetVersion ? renderLatestDataset(latestDatasetVersion) : <EmptyState message="Load the latest dataset version to inspect its canonical entry set." />}
-              {datasetHistory ? renderDatasetHistory(datasetHistory, currentDatasetHistory) : <EmptyState message="Load dataset history to review version progression." />}
-            </div>
-          </Panel>
-        </div>
+  const sessionPanel = (
+    <Panel
+      title="Session Status"
+      eyebrow="Access"
+      action={
+        <button type="button" className="button button-secondary" onClick={connectWallet} disabled={isConnectingWallet}>
+          {hasWalletConnection ? "Reconnect" : "Connect"}
+        </button>
+      }
+    >
+      {walletNotice ? <StatusNotice tone={walletNotice.tone} message={walletNotice.message} /> : null}
+      <div className="detail-grid compact-grid">
+        <Detail label="Injected provider" value={injectedWallet === null ? "Not found" : "Detected"} />
+        <Detail label="Connected account" value={walletAccount ?? "Not connected"} mono />
+        <Detail
+          label="Wallet chain"
+          value={walletChainId === null ? "Unknown" : `${walletChainId} (${walletChainIdHex})`}
+          mono
+        />
+        <Detail label="Configured network" value={`${walletConfig.chainName} (${walletConfig.chainId})`} />
       </div>
-    </main>
+      {chainMismatch ? (
+        <div className="inline-actions">
+          <StatusNotice
+            tone="error"
+            message={`Wallet is on chain ${walletChainId}. Switch to ${walletConfig.chainName} to match the configured demo network.`}
+          />
+          <button type="button" className="button button-secondary" onClick={handleSwitchNetwork}>
+            Switch Network
+          </button>
+        </div>
+      ) : null}
+    </Panel>
+  );
+
+  const taskSectionPanel =
+    activeTaskSection === "create" ? (
+      <Panel title="Create Task" eyebrow="Write Flow">
+        {taskNotice ? <StatusNotice tone={taskNotice.tone} message={taskNotice.message} /> : null}
+        <form className="stack" onSubmit={handleCreateTask}>
+          <Field label="Task ID" helper="Use a bytes32 hex value.">
+            <div className="field-row">
+              <input
+                value={taskForm.taskId}
+                onChange={(event) => setTaskForm((current) => ({ ...current, taskId: event.target.value }))}
+                placeholder="0x..."
+              />
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => setTaskForm((current) => ({ ...current, taskId: generateBytes32Hex() }))}
+              >
+                Generate
+              </button>
+            </div>
+          </Field>
+          <Field label="Metadata URI">
+            <input
+              value={taskForm.metadataUri}
+              onChange={(event) => setTaskForm((current) => ({ ...current, metadataUri: event.target.value }))}
+              placeholder="ipfs://task-metadata"
+            />
+          </Field>
+          <Field label="Metadata Hash">
+            <input
+              value={taskForm.metadataHash}
+              onChange={(event) => setTaskForm((current) => ({ ...current, metadataHash: event.target.value }))}
+              placeholder="0x..."
+            />
+          </Field>
+          <Field label="Stake Amount (wei)" helper="Optional. Use a whole-number wei string.">
+            <input
+              value={taskForm.stakeAmountWei}
+              onChange={(event) => setTaskForm((current) => ({ ...current, stakeAmountWei: event.target.value }))}
+              placeholder="0"
+            />
+          </Field>
+          <button className="button button-primary" type="submit" disabled={isCreatingTask}>
+            {isCreatingTask ? "Creating..." : "Create Task"}
+          </button>
+        </form>
+      </Panel>
+    ) : activeTaskSection === "correction" ? (
+      <Panel title="Submit Correction" eyebrow="Write Flow">
+        {correctionNotice ? <StatusNotice tone={correctionNotice.tone} message={correctionNotice.message} /> : null}
+        <form className="stack" onSubmit={handleSubmitCorrection}>
+          <Field label="Task ID">
+            <input
+              value={correctionForm.taskId}
+              onChange={(event) =>
+                setCorrectionForm((current) => ({ ...current, taskId: event.target.value }))
+              }
+              placeholder="0x..."
+            />
+          </Field>
+          <Field label="Correction Metadata URI">
+            <input
+              value={correctionForm.metadataUri}
+              onChange={(event) =>
+                setCorrectionForm((current) => ({ ...current, metadataUri: event.target.value }))
+              }
+              placeholder="ipfs://correction-metadata"
+            />
+          </Field>
+          <Field label="Correction Metadata Hash">
+            <input
+              value={correctionForm.metadataHash}
+              onChange={(event) =>
+                setCorrectionForm((current) => ({ ...current, metadataHash: event.target.value }))
+              }
+              placeholder="0x..."
+            />
+          </Field>
+          <Field label="Stake Amount (wei)" helper="Optional.">
+            <input
+              value={correctionForm.stakeAmountWei}
+              onChange={(event) =>
+                setCorrectionForm((current) => ({ ...current, stakeAmountWei: event.target.value }))
+              }
+              placeholder="0"
+            />
+          </Field>
+          <button className="button button-primary" type="submit" disabled={isSubmittingCorrection}>
+            {isSubmittingCorrection ? "Submitting..." : "Submit Correction"}
+          </button>
+        </form>
+      </Panel>
+    ) : activeTaskSection === "session" ? (
+      sessionPanel
+    ) : (
+      <Panel title="Task Explorer" eyebrow="Read Flow">
+        {taskViewerNotice ? <StatusNotice tone={taskViewerNotice.tone} message={taskViewerNotice.message} /> : null}
+        <div className="stack">
+          <div className="field-row">
+            <input
+              value={taskLookupId}
+              onChange={(event) => setTaskLookupId(event.target.value)}
+              placeholder="Enter task ID to load"
+            />
+            <button
+              className="button button-primary"
+              type="button"
+              onClick={() => taskLookupId.trim().length > 0 && void loadTaskDetail(taskLookupId.trim())}
+              disabled={isLoadingTask}
+            >
+              {isLoadingTask ? "Loading..." : "Load"}
+            </button>
+          </div>
+          <RecentIdList
+            title="Recent Tasks"
+            ids={recentTaskIds}
+            onSelect={(value) => {
+              setTaskLookupId(value);
+              void loadTaskDetail(value);
+            }}
+          />
+          {isLoadingTask && selectedTask === null ? (
+            <LoadingState message="Fetching the latest task record..." />
+          ) : selectedTask ? (
+            renderSelectedTask(selectedTask, selectedCorrections)
+          ) : (
+            <EmptyState message="Load a task to inspect its canonical record and corrections." />
+          )}
+        </div>
+      </Panel>
+    );
+
+  const datasetSectionPanel =
+    activeDatasetSection === "register" ? (
+      <Panel title="Register Dataset Version" eyebrow="Write Flow">
+        {datasetNotice ? <StatusNotice tone={datasetNotice.tone} message={datasetNotice.message} /> : null}
+        <form className="stack" onSubmit={handleRegisterDatasetVersion}>
+          <Field label="Dataset ID">
+            <div className="field-row">
+              <input
+                value={datasetForm.datasetId}
+                onChange={(event) => setDatasetForm((current) => ({ ...current, datasetId: event.target.value }))}
+                placeholder="0x..."
+              />
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() =>
+                  setDatasetForm((current) => ({ ...current, datasetId: generateBytes32Hex() }))
+                }
+              >
+                Generate
+              </button>
+            </div>
+          </Field>
+          <Field label="Dataset Metadata URI">
+            <input
+              value={datasetForm.metadataUri}
+              onChange={(event) => setDatasetForm((current) => ({ ...current, metadataUri: event.target.value }))}
+              placeholder="ipfs://dataset-version"
+            />
+          </Field>
+          <Field label="Dataset Metadata Hash">
+            <input
+              value={datasetForm.metadataHash}
+              onChange={(event) => setDatasetForm((current) => ({ ...current, metadataHash: event.target.value }))}
+              placeholder="0x..."
+            />
+          </Field>
+          <Field label="Immutable Reference" helper="Optional override.">
+            <input
+              value={datasetForm.immutableRef}
+              onChange={(event) => setDatasetForm((current) => ({ ...current, immutableRef: event.target.value }))}
+              placeholder="dataset-v1-cid"
+            />
+          </Field>
+          <div className="subsection">
+            <div className="subsection-header">
+              <div>
+                <p className="label">Dataset Entries</p>
+                <p className="helper-copy">Reference existing tasks or corrections in order.</p>
+              </div>
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() =>
+                  setDatasetForm((current) => ({
+                    ...current,
+                    entries: [...current.entries, createDatasetEntryDraft()]
+                  }))
+                }
+              >
+                Add Entry
+              </button>
+            </div>
+            <div className="stack">
+              {datasetForm.entries.map((entry, index) => (
+                <div className="entry-card" key={entry.id}>
+                  <div className="entry-topline">
+                    <strong>Entry {index + 1}</strong>
+                    {datasetForm.entries.length > 1 ? (
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() =>
+                          setDatasetForm((current) => ({
+                            ...current,
+                            entries: current.entries.filter((candidate) => candidate.id !== entry.id)
+                          }))
+                        }
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="entry-grid">
+                    <label className="field">
+                      <span>Source Type</span>
+                      <select
+                        value={entry.sourceType}
+                        onChange={(event) =>
+                          updateDatasetEntry(entry.id, {
+                            sourceType: event.target.value as "TASK" | "CORRECTION",
+                            referenceId: ""
+                          })
+                        }
+                      >
+                        <option value="TASK">Task</option>
+                        <option value="CORRECTION">Correction</option>
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>{entry.sourceType === "TASK" ? "Task ID" : "Correction ID"}</span>
+                      <input
+                        value={entry.referenceId}
+                        onChange={(event) => updateDatasetEntry(entry.id, { referenceId: event.target.value })}
+                        placeholder={entry.sourceType === "TASK" ? "0x..." : "1"}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Entry Metadata URI</span>
+                      <input
+                        value={entry.metadataUri}
+                        onChange={(event) => updateDatasetEntry(entry.id, { metadataUri: event.target.value })}
+                        placeholder="Optional override"
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Entry Metadata Hash</span>
+                      <input
+                        value={entry.metadataHash}
+                        onChange={(event) => updateDatasetEntry(entry.id, { metadataHash: event.target.value })}
+                        placeholder="Optional override"
+                      />
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <button className="button button-primary" type="submit" disabled={isRegisteringDataset}>
+            {isRegisteringDataset ? "Registering..." : "Register Dataset Version"}
+          </button>
+        </form>
+      </Panel>
+    ) : activeDatasetSection === "history" ? (
+      <Panel title="Dataset History" eyebrow="Read Flow">
+        {datasetViewerNotice ? <StatusNotice tone={datasetViewerNotice.tone} message={datasetViewerNotice.message} /> : null}
+        <div className="stack">
+          <div className="field-row">
+            <input
+              value={datasetLookupId}
+              onChange={(event) => setDatasetLookupId(event.target.value)}
+              placeholder="Enter dataset ID to inspect"
+            />
+            <button
+              className="button button-primary"
+              type="button"
+              onClick={() => datasetLookupId.trim().length > 0 && void loadDatasetHistoryView(datasetLookupId.trim())}
+              disabled={isLoadingDatasetHistory}
+            >
+              {isLoadingDatasetHistory ? "Loading..." : "Load History"}
+            </button>
+          </div>
+          <RecentIdList
+            title="Recent Datasets"
+            ids={recentDatasetIds}
+            onSelect={(value) => {
+              setDatasetLookupId(value);
+              void loadDatasetHistoryView(value);
+            }}
+          />
+          {isLoadingDatasetHistory && datasetHistory === null ? (
+            <LoadingState message="Loading version history..." />
+          ) : datasetHistory ? (
+            renderDatasetHistory(datasetHistory, currentDatasetHistory)
+          ) : (
+            <EmptyState message="Load dataset history to review version progression." />
+          )}
+        </div>
+      </Panel>
+    ) : activeDatasetSection === "session" ? (
+      sessionPanel
+    ) : (
+      <Panel title="Latest Dataset Version" eyebrow="Read Flow">
+        {datasetViewerNotice ? <StatusNotice tone={datasetViewerNotice.tone} message={datasetViewerNotice.message} /> : null}
+        <div className="stack">
+          <div className="field-row">
+            <input
+              value={datasetLookupId}
+              onChange={(event) => setDatasetLookupId(event.target.value)}
+              placeholder="Enter dataset ID to inspect"
+            />
+            <button
+              className="button button-primary"
+              type="button"
+              onClick={() => datasetLookupId.trim().length > 0 && void loadLatestDatasetView(datasetLookupId.trim())}
+              disabled={isLoadingLatestDataset}
+            >
+              {isLoadingLatestDataset ? "Loading..." : "Load Latest"}
+            </button>
+          </div>
+          <RecentIdList
+            title="Recent Datasets"
+            ids={recentDatasetIds}
+            onSelect={(value) => {
+              setDatasetLookupId(value);
+              void loadLatestDatasetView(value);
+            }}
+          />
+          {isLoadingLatestDataset && latestDatasetVersion === null ? (
+            <LoadingState message="Resolving the latest dataset version..." />
+          ) : latestVersion && latestDatasetVersion ? (
+            renderLatestDataset(latestDatasetVersion)
+          ) : (
+            <EmptyState message="Load the latest dataset version to inspect its canonical entry set." />
+          )}
+        </div>
+      </Panel>
+    );
+
+  return (
+    <>
+      <header className="topbar">
+        <div className="topbar-inner">
+          <div className="brand-lockup">
+            <div className="brand-mark" aria-hidden="true" />
+            <div>
+              <p className="eyebrow">DataLoop</p>
+              <strong>Base Platform</strong>
+            </div>
+          </div>
+
+          <WorkspaceToggle activeWorkspace={activeWorkspace} onChange={setActiveWorkspace} />
+
+          <div className="topbar-meta">
+            <div className={`network-pill ${chainMismatch ? "network-pill-alert" : hasWalletConnection ? "network-pill-live" : ""}`}>
+              <span className="network-dot" aria-hidden="true" />
+              <div>
+                <span className="micro-label">Network</span>
+                <strong>{chainMismatch ? "Mismatch" : walletConfig.chainName}</strong>
+              </div>
+            </div>
+
+            <div className="account-pill">
+              <span className="micro-label">Wallet</span>
+              <strong className="mono-text">{connectedStateLabel}</strong>
+            </div>
+
+            <button
+              type="button"
+              className={`button button-primary topbar-button ${hasWalletConnection && !chainMismatch ? "button-connected" : ""}`}
+              onClick={connectWallet}
+              disabled={isConnectingWallet}
+            >
+              {isConnectingWallet ? "Connecting..." : hasWalletConnection ? "Reconnect" : "Connect Wallet"}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="app-shell">
+        <section className="hero-shell">
+          <div className="hero-copy-block">
+            <p className="eyebrow">Minimal Glass Workspace</p>
+            <h1>Curate tasks and datasets through a calmer control surface.</h1>
+            <p className="copy">
+              Create task records, attach corrections, register dataset versions, and inspect canonical state
+              through a single glassmorphism workspace tuned for the Week 1 API and contract flow.
+            </p>
+
+            <div className="hero-actions">
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={() => setActiveWorkspace(activeWorkspace === "tasks" ? "datasets" : "tasks")}
+              >
+                Open {activeWorkspace === "tasks" ? "Dataset" : "Task"} Workspace
+              </button>
+              <button
+                type="button"
+                className="button button-tertiary"
+                onClick={() => {
+                  if (activeWorkspace === "tasks" && activeTaskSection === "details" && taskLookupId.trim().length > 0) {
+                    void loadTaskDetail(taskLookupId.trim());
+                  }
+                  if (activeWorkspace === "datasets" && activeDatasetSection === "latest" && datasetLookupId.trim().length > 0) {
+                    void loadLatestDatasetView(datasetLookupId.trim());
+                  }
+                  if (activeWorkspace === "datasets" && activeDatasetSection === "history" && datasetLookupId.trim().length > 0) {
+                    void loadDatasetHistoryView(datasetLookupId.trim());
+                  }
+                }}
+              >
+                Refresh Active Explorer
+              </button>
+            </div>
+          </div>
+
+          <div className="hero-meta">
+            <MetricCard label="API Endpoint" value={getApiBaseUrl()} mono />
+            <div className="hero-stat-grid">
+              <MetricCard label="Configured Chain" value={`${walletConfig.chainName} (${walletConfig.chainId})`} />
+              <MetricCard label="Recent Tasks" value={String(recentTaskIds.length)} />
+              <MetricCard label="Recent Datasets" value={String(recentDatasetIds.length)} />
+              <MetricCard label="Latest Dataset" value={latestDatasetLabel} />
+            </div>
+          </div>
+        </section>
+
+        {chainMismatch ? (
+          <section className="network-banner">
+            <div>
+              <p className="eyebrow">Wallet Action</p>
+              <h2>Switch to {walletConfig.chainName} before writing on-chain state.</h2>
+              <p className="section-copy">
+                The connected wallet is currently on chain {walletChainId ?? "unknown"}. Align it with the configured
+                demo network to keep task, correction, and dataset transactions consistent.
+              </p>
+            </div>
+            <button type="button" className="button button-secondary" onClick={handleSwitchNetwork}>
+              Switch Network
+            </button>
+          </section>
+        ) : null}
+
+        <section className="workspace-shell">
+          <div className="workspace-heading">
+            <div>
+              <p className="eyebrow">{activeWorkspace === "tasks" ? "Tasks" : "Datasets"}</p>
+              <h2>{workspaceTitle}</h2>
+              <p className="section-copy">{workspaceCopy}</p>
+            </div>
+            <div className="workspace-summary">
+              <MetricCard label="Session" value={walletStatusLabel} />
+              <MetricCard label="Corrections Loaded" value={String(selectedCorrections.length)} />
+            </div>
+          </div>
+
+          <div className="workspace-content">
+            {activeWorkspace === "tasks" ? (
+              <>
+                <WorkspaceSectionNav
+                  title="Task Sections"
+                  items={taskSectionItems}
+                  activeKey={activeTaskSection}
+                  onChange={setActiveTaskSection}
+                />
+                {taskSectionPanel}
+              </>
+            ) : (
+              <>
+                <WorkspaceSectionNav
+                  title="Dataset Sections"
+                  items={datasetSectionItems}
+                  activeKey={activeDatasetSection}
+                  onChange={setActiveDatasetSection}
+                />
+                {datasetSectionPanel}
+              </>
+            )}
+          </div>
+        </section>
+      </main>
+    </>
+  );
+}
+
+interface WorkspaceSectionNavItem<T extends string> {
+  key: T;
+  label: string;
+}
+
+function WorkspaceSectionNav<T extends string>({
+  title,
+  items,
+  activeKey,
+  onChange
+}: {
+  title: string;
+  items: WorkspaceSectionNavItem<T>[];
+  activeKey: T;
+  onChange: (key: T) => void;
+}) {
+  return (
+    <div className="workspace-section-nav" role="tablist" aria-label={title}>
+      {items.map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          role="tab"
+          aria-selected={item.key === activeKey}
+          className={`workspace-section-link ${item.key === activeKey ? "workspace-section-link-active" : ""}`}
+          onClick={() => onChange(item.key)}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function WorkspaceToggle({
+  activeWorkspace,
+  onChange
+}: {
+  activeWorkspace: WorkspaceKey;
+  onChange: (workspace: WorkspaceKey) => void;
+}) {
+  return (
+    <div className="segmented-control" role="tablist" aria-label="Workspace switcher">
+      <button
+        type="button"
+        className={`segment ${activeWorkspace === "tasks" ? "segment-active" : ""}`}
+        onClick={() => onChange("tasks")}
+      >
+        Tasks
+      </button>
+      <button
+        type="button"
+        className={`segment ${activeWorkspace === "datasets" ? "segment-active" : ""}`}
+        onClick={() => onChange("datasets")}
+      >
+        Datasets
+      </button>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  mono = false
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="meta-card">
+      <span className="label">{label}</span>
+      <strong className={mono ? "mono-text" : undefined}>{value}</strong>
+    </div>
   );
 }
 
@@ -1069,7 +1383,31 @@ function RecordHeader({ title, subtitle }: { title: string; subtitle: string }) 
 }
 
 function EmptyState({ message }: { message: string }) {
-  return <div className="empty-state">{message}</div>;
+  return (
+    <div className="empty-state">
+      <div className="empty-state-art" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+      <p>{message}</p>
+    </div>
+  );
+}
+
+function LoadingState({ message }: { message: string }) {
+  return (
+    <div className="loading-state" aria-live="polite" aria-busy="true">
+      <div className="loading-bar loading-bar-wide" />
+      <div className="loading-bar" />
+      <div className="loading-grid">
+        <div className="loading-chip" />
+        <div className="loading-chip" />
+        <div className="loading-chip" />
+      </div>
+      <p>{message}</p>
+    </div>
+  );
 }
 
 function RecentIdList({

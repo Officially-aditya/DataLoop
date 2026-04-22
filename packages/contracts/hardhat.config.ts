@@ -46,8 +46,8 @@ subtask(TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD).setAction(
 );
 
 const hasDeployConfig =
-  typeof process.env.SEPOLIA_RPC_URL === "string" &&
-  process.env.SEPOLIA_RPC_URL.length > 0 &&
+  typeof process.env.ZG_RPC_URL === "string" &&
+  process.env.ZG_RPC_URL.length > 0 &&
   typeof process.env.DEPLOYER_PRIVATE_KEY === "string" &&
   process.env.DEPLOYER_PRIVATE_KEY.length > 0;
 
@@ -58,7 +58,8 @@ const config: HardhatUserConfig = {
       optimizer: {
         enabled: true,
         runs: 200
-      }
+      },
+      evmVersion: "cancun"
     }
   },
   paths: {
@@ -69,8 +70,8 @@ const config: HardhatUserConfig = {
   },
   networks: hasDeployConfig
     ? {
-        sepolia: {
-          url: process.env.SEPOLIA_RPC_URL as string,
+        zgMainnet: {
+          url: process.env.ZG_RPC_URL as string,
           accounts: [process.env.DEPLOYER_PRIVATE_KEY as string]
         }
       }

@@ -2,6 +2,16 @@
 
 Week 1 foundation scaffold for the DataLoop platform.
 
+## Target network
+
+| Property | Value |
+|----------|-------|
+| Network  | 0G Mainnet |
+| Chain ID | 16661 |
+| Token    | 0G |
+| RPC      | https://evmrpc.0g.ai |
+| Explorer | https://chainscan.0g.ai |
+
 ## Workspace layout
 
 - `apps/api`: Fastify API entry point and route scaffolding
@@ -25,7 +35,8 @@ Identifiers for `taskId` and `datasetId` are expected as `bytes32` hex strings s
 ## Week 1 run instructions
 
 1. Install dependencies with `npm install`.
-2. Copy `.env.example` into package-level `.env` files as needed.
+2. Copy `.env.example` into package-level `.env` files as needed and fill in
+   `ZG_RPC_URL`, `DEPLOYER_PRIVATE_KEY`, and `API_SIGNER_PRIVATE_KEY`.
 3. Generate Prisma client with `npm run db:generate`.
 4. Start the API in one terminal with `npm run dev:api`.
 5. Start the web app in another terminal with `npm run dev:web`.

@@ -35,7 +35,7 @@ function parsePort(value: string | undefined): number {
 }
 
 function parseChainId(value: string | undefined): number {
-  const chainId = Number(value ?? "11155111");
+  const chainId = Number(value ?? "16661");
 
   if (!Number.isInteger(chainId) || chainId <= 0) {
     throw new Error("CHAIN_ID must be a positive integer");
