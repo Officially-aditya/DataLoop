@@ -11,6 +11,8 @@
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "dev:agent": "npm run dev --workspace @dataloop/agent",
+    "agent:run": "npm run run --workspace @dataloop/agent",
     "dev:api": "npm run dev --workspace @dataloop/api",
     "dev:web": "npm run dev --workspace @dataloop/web",
     "seed:week1": "npm run seed:week1 --workspace @dataloop/api",

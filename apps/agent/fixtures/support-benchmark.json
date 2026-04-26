@@ -1,0 +1,86 @@
+[
+  {
+    "id": "network-wrong-chain",
+    "title": "Wallet connected to the wrong 0G network",
+    "userPrompt": "My wallet is connected but the dapp keeps rejecting me. MetaMask says I am on a different chain than expected and I cannot create a task.",
+    "expected": {
+      "category": "NETWORK_CONFIGURATION",
+      "severity": "low",
+      "requiresHuman": false,
+      "summary": "The user wallet is connected to the wrong blockchain network for the dapp.",
+      "suggestedResolution": "Ask the user to switch MetaMask to the configured 0G network and retry the action.",
+      "confidence": 0.93
+    },
+    "mockResponse": "{\"category\":\"NETWORK_CONFIGURATION\",\"severity\":\"low\",\"requiresHuman\":false,\"summary\":\"The wallet is on the wrong chain.\",\"suggestedResolution\":\"Switch the wallet network to the required 0G chain and try again.\",\"confidence\":0.91}"
+  },
+  {
+    "id": "insufficient-gas",
+    "title": "Not enough balance to submit a transaction",
+    "userPrompt": "Every correction submission fails before confirmation. The wallet shows almost zero 0G and the transaction never gets sent.",
+    "expected": {
+      "category": "INSUFFICIENT_FUNDS",
+      "severity": "medium",
+      "requiresHuman": false,
+      "summary": "The user lacks enough 0G to pay gas and submit the transaction.",
+      "suggestedResolution": "Tell the user to fund the wallet with enough 0G for gas, then retry the correction submission.",
+      "confidence": 0.9
+    },
+    "mockResponse": "{\"category\":\"TRANSACTION_STUCK\",\"severity\":\"medium\",\"requiresHuman\":false,\"summary\":\"The transaction is taking too long to finish.\",\"suggestedResolution\":\"Wait for more confirmations before retrying.\",\"confidence\":0.88}"
+  },
+  {
+    "id": "pending-transaction",
+    "title": "Transaction stays pending for hours",
+    "userPrompt": "I created a task but the transaction has been pending for two hours. Gas was accepted and nothing reverted, but it still does not show up on-chain.",
+    "expected": {
+      "category": "TRANSACTION_STUCK",
+      "severity": "medium",
+      "requiresHuman": false,
+      "summary": "The transaction was submitted but is still pending and likely needs gas replacement or resubmission.",
+      "suggestedResolution": "Recommend checking the nonce, replacing the transaction with a higher gas fee, or resubmitting after confirming network status.",
+      "confidence": 0.87
+    },
+    "mockResponse": "{\"category\":\"TRANSACTION_STUCK\",\"severity\":\"medium\",\"requiresHuman\":false,\"summary\":\"The transaction is likely pending in the mempool.\",\"suggestedResolution\":\"Review nonce and consider replacing the transaction with a higher fee.\",\"confidence\":0.41}"
+  },
+  {
+    "id": "malicious-approval",
+    "title": "Suspicious token approval request",
+    "userPrompt": "A user says they connected a wallet to claim an airdrop and the site asked for unlimited token approval. They want to know if it is safe.",
+    "expected": {
+      "category": "SCAM_RISK",
+      "severity": "critical",
+      "requiresHuman": true,
+      "summary": "The user is facing a likely phishing or malicious token approval attempt.",
+      "suggestedResolution": "Tell the user not to approve the transaction, disconnect from the site, review approvals, and escalate for immediate human review.",
+      "confidence": 0.96
+    },
+    "mockResponse": "This looks dangerous. Category=scam risk. Ask a human to review it immediately."
+  },
+  {
+    "id": "wallet-extension",
+    "title": "Browser wallet extension not detected",
+    "userPrompt": "The app says no wallet is installed, but the user thought they had MetaMask already. They cannot connect at all.",
+    "expected": {
+      "category": "WALLET_CONNECTION",
+      "severity": "low",
+      "requiresHuman": false,
+      "summary": "The browser does not expose a usable wallet provider to the dapp.",
+      "suggestedResolution": "Ask the user to install or re-enable the wallet extension and refresh the browser before reconnecting.",
+      "confidence": 0.89
+    },
+    "mockResponse": "{\"category\":\"WALLET_CONNECTION\",\"severity\":\"low\",\"requiresHuman\":false,\"summary\":\"The dapp cannot detect a wallet provider in the browser.\",\"suggestedResolution\":\"Install or re-enable the wallet extension and refresh the page.\",\"confidence\":0.84}"
+  },
+  {
+    "id": "contract-revert",
+    "title": "Contract call reverts with a custom error",
+    "userPrompt": "A correction submission reaches the contract, but the transaction reverts with a custom error after simulation. The user needs next steps.",
+    "expected": {
+      "category": "CONTRACT_ERROR",
+      "severity": "high",
+      "requiresHuman": true,
+      "summary": "The on-chain action is reverting because of a contract-level validation or state error.",
+      "suggestedResolution": "Capture the revert reason, inspect the contract state and request payload, and escalate to a developer or operator for investigation.",
+      "confidence": 0.91
+    },
+    "mockResponse": "{\"category\":\"CONTRACT_ERROR\",\"severity\":\"medium\",\"requiresHuman\":true,\"summary\":\"The smart contract call reverted during execution.\",\"suggestedResolution\":\"Check the revert details and inspect the contract inputs before retrying.\",\"confidence\":0.79}"
+  }
+]

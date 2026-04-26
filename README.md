@@ -1,6 +1,6 @@
 # DataLoop
 
-Week 1 foundation scaffold for the DataLoop platform.
+Week 1 foundation scaffold for the DataLoop platform, now extended with a Week 2 agent benchmark scaffold.
 
 ## Target network
 
@@ -14,6 +14,8 @@ Week 1 foundation scaffold for the DataLoop platform.
 
 ## Workspace layout
 
+- `apps/agent`: Week 2 benchmark agent, failure detector, artifact generator, and base-platform publisher
+  - now oriented around markdown artifact generation and retrieval
 - `apps/api`: Fastify API entry point and route scaffolding
 - `apps/web`: React + Vite frontend shell and wallet integration hooks
 - `packages/contracts`: Hardhat contract workspace
@@ -71,4 +73,47 @@ If your API runs on a non-default URL, set `WEEK1_API_BASE_URL` before running t
 	- `GET /v1/datasets/:datasetId/history`
 	- `GET /v1/datasets/:datasetId/latest`
 
-This scaffold intentionally excludes Week 2 and Week 3 logic such as agent workflows, fine-tuning, and cross-chain features.
+The current codebase now includes a Week 2 benchmark scaffold, but it still excludes Week 3 logic such as fine-tuning execution, model reload, and cross-component demo orchestration.
+
+## Week 2 scaffold
+
+The Week 2 workspace introduces one focused demo agent:
+
+- domain: builder support / wallet issue triage
+- output: strict JSON classification with confidence and recommended action
+- failure capture: invalid JSON, schema mismatch, low confidence, or benchmark mismatch
+- correction output: markdown knowledge artifacts, corrected records, and optional JSONL training examples
+- retrieval loop: baseline run, artifact generation, then artifact-augmented rerun
+- integration: optional push into the Week 1 API as task + correction + dataset version records
+
+### Week 2 run modes
+
+1. Local mock mode for repeatable development:
+   - `npm run agent:run`
+2. 0G-compatible inference mode:
+   - run a 0G OpenAI-compatible proxy or compatible endpoint
+   - set `AGENT_MODEL_MODE=openai-compatible`
+   - set `AGENT_MODEL_BASE_URL`, `AGENT_MODEL_NAME`, and `AGENT_MODEL_API_KEY`
+   - run `npm run agent:run`
+
+For 0G Compute direct API usage, set `AGENT_MODEL_BASE_URL` to the provider service URL plus
+`/v1/proxy`, and set `AGENT_MODEL_API_KEY` to the `app-sk-...` secret generated for that provider.
+For the local 0G proxy server, point `AGENT_MODEL_BASE_URL` at the proxy's OpenAI-compatible base URL.
+Relative `AGENT_*` file paths resolve from the repository root.
+
+Artifacts are written under `apps/agent/runs`.
+Each run now writes:
+
+- `run-report.json` with baseline vs artifact-augmented metrics
+- `benchmark-comparison.md` with expected, baseline, and artifact-augmented outputs per case
+- `artifacts/*.artifact.md` as retrieval-ready markdown knowledge assets
+- `artifact-manifest.snapshot.json` as retrieval metadata
+- `artifact-storage-manifest.snapshot.json` as the prepared 0G Storage upload bundle
+- `*.failure.json` and `*.correction.json`
+- `training.jsonl` as an optional future fine-tuning export
+
+The long-lived artifact library is stored under `apps/agent/knowledge` by default. It includes:
+
+- `manifest.json` for local retrieval
+- `storage-manifest.json` for later 0G Storage upload/registration
+- `artifacts/*.artifact.md` for the versioned markdown knowledge assets
