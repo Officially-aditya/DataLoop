@@ -14,6 +14,7 @@ test("runs the benchmark in mock mode and persists a manifest-backed artifact li
   const artifactManifestPath = path.join(artifactLibraryDir, "manifest.json");
 
   const config: AgentConfig = {
+    domain: "support",
     benchmarkPath: path.resolve(__dirname, "..", "fixtures/support-benchmark.json"),
     outputDir,
     artifactLibraryDir,
@@ -89,4 +90,65 @@ test("runs the benchmark in mock mode and persists a manifest-backed artifact li
   } finally {
     process.chdir(originalCwd);
   }
+});
+
+test("runs the Excel benchmark and shows artifact-augmented improvement", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "dataloop-agent-excel-"));
+  const outputDir = path.join(tempDir, "runs");
+  const artifactLibraryDir = path.join(tempDir, "knowledge");
+  const artifactManifestPath = path.join(artifactLibraryDir, "manifest.json");
+
+  const config: AgentConfig = {
+    domain: "excel",
+    benchmarkPath: path.resolve(__dirname, "..", "fixtures/excel-qna-benchmark.json"),
+    outputDir,
+    artifactLibraryDir,
+    artifactManifestPath,
+    minConfidence: 0.72,
+    retrievalLimit: 2,
+    retrievalMinScore: 1,
+    modelMode: "mock",
+    modelName: "mock-model",
+    modelBaseUrl: null,
+    modelApiKey: null,
+    pushToPlatform: false,
+    registerDatasetVersion: false,
+    platformApiUrl: null,
+    platformCreatorAddress: "0x1234567890abcdef1234567890abcdef12345678",
+    platformSubmitterAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    platformRegistrarAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    platformDatasetId: null
+  };
+
+  const result = await runAgentBenchmark(config);
+  const report = JSON.parse(
+    await fs.readFile(path.join(result.outputPath, "run-report.json"), "utf8")
+  ) as {
+    baselinePassedCount: number;
+    artifactPassedCount: number;
+    improvedCount: number;
+    artifactCount: number;
+    artifactLibraryManifest: unknown[];
+  };
+  const comparisonReport = await fs.readFile(
+    path.join(result.outputPath, "benchmark-comparison.md"),
+    "utf8"
+  );
+  const training = await fs.readFile(path.join(result.outputPath, "training.jsonl"), "utf8");
+
+  assert.equal(result.summary.benchmarkCaseCount, 20);
+  assert.equal(result.summary.baselinePassedCount, 5);
+  assert.equal(result.summary.baselineFailedCount, 15);
+  assert.equal(result.summary.artifactPassedCount, 20);
+  assert.equal(result.summary.artifactFailedCount, 0);
+  assert.equal(result.summary.improvedCount, 15);
+  assert.equal(result.summary.artifactCount, 15);
+  assert.equal(report.baselinePassedCount, 5);
+  assert.equal(report.artifactPassedCount, 20);
+  assert.equal(report.improvedCount, 15);
+  assert.equal(report.artifactCount, 15);
+  assert.equal(report.artifactLibraryManifest.length, 15);
+  assert.equal(training.trim().split("\n").length, 15);
+  assert.match(comparisonReport, /Artifact-augmented passed: 20/);
+  assert.match(comparisonReport, /Improved cases: 15/);
 });

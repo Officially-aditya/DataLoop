@@ -12,6 +12,12 @@ import type {
 
 import type { AgentConfig } from "./config";
 import { sha256Hex } from "./hash";
+import {
+  artifactDomainForAgentDomain,
+  expectedArtifactDomainForBenchmarkCase,
+  isExcelBenchmarkCase,
+  isSupportBenchmarkCase
+} from "./responses";
 
 const ARTIFACT_SCHEMA_VERSION = 1;
 const STORAGE_MANIFEST_SCHEMA_VERSION = 1;
@@ -58,11 +64,6 @@ export interface ArtifactLibrary {
   storageManifest: AgentArtifactStorageManifest;
 }
 
-interface ArtifactContentInput {
-  benchmarkCase: AgentBenchmarkCase;
-  issues: AgentEvaluationIssue[];
-}
-
 export async function loadArtifactLibrary(
   config: Pick<AgentConfig, "artifactLibraryDir" | "artifactManifestPath">
 ): Promise<ArtifactLibrary> {
@@ -97,18 +98,38 @@ export function buildKnowledgeArtifact(input: {
   runId: string;
   benchmarkCase: AgentBenchmarkCase;
   issues: AgentEvaluationIssue[];
+  domain: "support" | "excel";
   existingArtifact?: AgentKnowledgeArtifact;
   generatedAt?: string;
 }): AgentKnowledgeArtifact {
   const artifactId = sha256Hex(`artifact:${input.benchmarkCase.id}`);
-  const domain = "builder-support";
+  const domain = artifactDomainForAgentDomain(input.domain);
   const sourceFailureCodes = input.issues.map((issue) => issue.code);
-  const resolutionSteps = buildResolutionSteps(input.benchmarkCase.expected.suggestedResolution);
+  const excelCase = input.domain === "excel" && isExcelBenchmarkCase(input.benchmarkCase)
+    ? input.benchmarkCase
+    : null;
+  const supportCase = input.domain === "support" && isSupportBenchmarkCase(input.benchmarkCase)
+    ? input.benchmarkCase
+    : null;
+
+  if (input.domain === "excel" && excelCase === null) {
+    throw new Error(`Benchmark case ${input.benchmarkCase.id} is not an Excel benchmark case`);
+  }
+
+  if (input.domain === "support" && supportCase === null) {
+    throw new Error(`Benchmark case ${input.benchmarkCase.id} is not a support benchmark case`);
+  }
+
+  const resolutionSteps = input.domain === "excel"
+    ? [excelCase!.expectedAnswer]
+    : buildResolutionSteps(supportCase!.expected.suggestedResolution);
+
   const exampleInputs = [input.benchmarkCase.userPrompt];
-  const tags = buildArtifactTags(input.benchmarkCase);
+  const tags = buildArtifactTags(input.benchmarkCase, input.domain);
   const contentHash = buildArtifactContentHash({
     benchmarkCase: input.benchmarkCase,
-    issues: input.issues
+    issues: input.issues,
+    domain: input.domain
   });
 
   if (
@@ -122,32 +143,65 @@ export function buildKnowledgeArtifact(input: {
   const fileName = buildArtifactFileName(input.benchmarkCase.id, version);
   const generatedAt = input.generatedAt ?? new Date().toISOString();
   const artifactUri = `${ARTIFACT_URI_PREFIX}/${fileName}`;
-  const frontmatter: AgentArtifactFrontmatter = {
-    artifactId,
-    benchmarkCaseId: input.benchmarkCase.id,
-    title: input.benchmarkCase.title,
-    domain,
-    schemaVersion: ARTIFACT_SCHEMA_VERSION,
-    issuePattern: input.benchmarkCase.userPrompt,
-    category: input.benchmarkCase.expected.category,
-    classification: input.benchmarkCase.expected.category,
-    severity: input.benchmarkCase.expected.severity,
-    requiresHuman: input.benchmarkCase.expected.requiresHuman,
-    version,
-    tags,
-    resolutionSteps,
-    exampleInputs,
-    provenance: {
-      sourceRunId: input.runId,
-      benchmarkCaseId: input.benchmarkCase.id,
-      failureCodes: sourceFailureCodes,
-      generatedAt
-    },
-    storage: {
-      contentHash,
-      artifactUri
-    }
-  };
+
+  const frontmatter: AgentArtifactFrontmatter = input.domain === "excel"
+    ? {
+        artifactId,
+        benchmarkCaseId: input.benchmarkCase.id,
+        title: input.benchmarkCase.title,
+        domain,
+        schemaVersion: ARTIFACT_SCHEMA_VERSION,
+        issuePattern: input.benchmarkCase.userPrompt,
+        ...(excelCase!.expectedFormula !== undefined && excelCase!.expectedFormula.trim().length > 0
+          ? { formulaPattern: excelCase!.expectedFormula }
+          : {}),
+        concepts: excelCase!.requiredConcepts || [],
+        difficulty: excelCase!.difficulty,
+        version,
+        tags,
+        resolutionSteps,
+        exampleInputs,
+        provenance: {
+          sourceRunId: input.runId,
+          benchmarkCaseId: input.benchmarkCase.id,
+          failureCodes: sourceFailureCodes,
+          generatedAt
+        },
+        storage: {
+          contentHash,
+          artifactUri
+        }
+      }
+    : {
+        artifactId,
+        benchmarkCaseId: input.benchmarkCase.id,
+        title: input.benchmarkCase.title,
+        domain,
+        schemaVersion: ARTIFACT_SCHEMA_VERSION,
+        issuePattern: input.benchmarkCase.userPrompt,
+        category: supportCase!.expected.category,
+        classification: supportCase!.expected.category,
+        severity: supportCase!.expected.severity,
+        requiresHuman: supportCase!.expected.requiresHuman,
+        version,
+        tags,
+        resolutionSteps,
+        exampleInputs,
+        provenance: {
+          sourceRunId: input.runId,
+          benchmarkCaseId: input.benchmarkCase.id,
+          failureCodes: sourceFailureCodes,
+          generatedAt
+        },
+        storage: {
+          contentHash,
+          artifactUri
+        }
+      };
+
+  const summary = input.domain === "excel"
+    ? excelCase!.expectedAnswer
+    : supportCase!.expected.summary;
 
   return {
     artifactId,
@@ -155,7 +209,7 @@ export function buildKnowledgeArtifact(input: {
     version,
     fileName,
     frontmatter,
-    markdown: renderArtifactMarkdown(frontmatter, input.benchmarkCase.expected.summary),
+    markdown: renderArtifactMarkdown(frontmatter, summary, input.domain),
     retrievalText: buildRetrievalText(frontmatter),
     sourceFailureCodes
   };
@@ -217,8 +271,10 @@ export function retrieveArtifacts(
 ) {
   const titleTokens = new Set(tokenizeForRetrieval(benchmarkCase.title));
   const issueTokens = new Set(tokenizeForRetrieval(benchmarkCase.userPrompt));
+  const artifactDomain = expectedArtifactDomainForBenchmarkCase(benchmarkCase);
 
   return [...artifacts]
+    .filter((artifact) => artifact.frontmatter.domain === artifactDomain)
     .map((artifact) => ({
       artifact,
       score: scoreArtifact(titleTokens, issueTokens, artifact)
@@ -312,7 +368,45 @@ export function parseArtifactFrontmatter(markdown: string): AgentArtifactFrontma
   return JSON.parse(frontmatterText) as AgentArtifactFrontmatter;
 }
 
+interface ArtifactContentInput {
+  benchmarkCase: AgentBenchmarkCase;
+  issues: AgentEvaluationIssue[];
+  domain: "support" | "excel";
+}
+
 function buildArtifactContentHash(input: ArtifactContentInput) {
+  if (input.domain === "excel") {
+    if (!isExcelBenchmarkCase(input.benchmarkCase)) {
+      throw new Error(`Benchmark case ${input.benchmarkCase.id} is not an Excel benchmark case`);
+    }
+
+    const excelCase = input.benchmarkCase;
+
+    return sha256Hex(
+      JSON.stringify({
+        schemaVersion: ARTIFACT_SCHEMA_VERSION,
+        artifactId: sha256Hex(`artifact:${input.benchmarkCase.id}`),
+        benchmarkCaseId: input.benchmarkCase.id,
+        title: input.benchmarkCase.title,
+        domain: "excel-qna",
+        issuePattern: input.benchmarkCase.userPrompt,
+        formulaPattern: excelCase.expectedFormula,
+        concepts: excelCase.requiredConcepts || [],
+        difficulty: excelCase.difficulty,
+        expectedAnswer: excelCase.expectedAnswer,
+        exampleInputs: [input.benchmarkCase.userPrompt],
+        tags: buildArtifactTags(input.benchmarkCase, input.domain),
+        sourceFailureCodes: input.issues.map((issue) => issue.code)
+      })
+    );
+  }
+
+  if (!isSupportBenchmarkCase(input.benchmarkCase)) {
+    throw new Error(`Benchmark case ${input.benchmarkCase.id} is not a support benchmark case`);
+  }
+
+  const supportCase = input.benchmarkCase;
+
   return sha256Hex(
     JSON.stringify({
       schemaVersion: ARTIFACT_SCHEMA_VERSION,
@@ -321,24 +415,74 @@ function buildArtifactContentHash(input: ArtifactContentInput) {
       title: input.benchmarkCase.title,
       domain: "builder-support",
       issuePattern: input.benchmarkCase.userPrompt,
-      category: input.benchmarkCase.expected.category,
-      classification: input.benchmarkCase.expected.category,
-      severity: input.benchmarkCase.expected.severity,
-      requiresHuman: input.benchmarkCase.expected.requiresHuman,
-      summary: input.benchmarkCase.expected.summary,
-      resolutionSteps: buildResolutionSteps(input.benchmarkCase.expected.suggestedResolution),
+      category: supportCase.expected.category,
+      classification: supportCase.expected.category,
+      severity: supportCase.expected.severity,
+      requiresHuman: supportCase.expected.requiresHuman,
+      summary: supportCase.expected.summary,
+      resolutionSteps: buildResolutionSteps(supportCase.expected.suggestedResolution),
       exampleInputs: [input.benchmarkCase.userPrompt],
-      tags: buildArtifactTags(input.benchmarkCase),
+      tags: buildArtifactTags(input.benchmarkCase, input.domain),
       sourceFailureCodes: input.issues.map((issue) => issue.code)
     })
   );
 }
 
-function renderArtifactMarkdown(frontmatter: AgentArtifactFrontmatter, summary: string) {
+function renderArtifactMarkdown(frontmatter: AgentArtifactFrontmatter, summary: string, domain: "support" | "excel") {
   const resolutionSteps = frontmatter.resolutionSteps.map((step, index) => `${index + 1}. ${step}`).join("\n");
   const exampleInputs = frontmatter.exampleInputs.map((example) => `- ${example}`).join("\n");
   const failureCodes = frontmatter.provenance.failureCodes.map((code) => `- ${code}`).join("\n");
   const tagLine = frontmatter.tags.join(", ");
+
+  if (domain === "excel") {
+    const concepts = frontmatter.concepts?.join(", ") || "N/A";
+    return [
+      "---",
+      JSON.stringify(frontmatter, null, 2),
+      "---",
+      "",
+      `# ${frontmatter.title}`,
+      "",
+      "## Domain",
+      frontmatter.domain,
+      "",
+      "## Question Pattern",
+      frontmatter.issuePattern,
+      "",
+      "## Formula Pattern",
+      frontmatter.formulaPattern || "N/A",
+      "",
+      "## Required Concepts",
+      concepts,
+      "",
+      "## Difficulty",
+      frontmatter.difficulty || "N/A",
+      "",
+      "## Recommended Answer",
+      summary,
+      "",
+      "## Resolution Steps",
+      resolutionSteps,
+      "",
+      "## Examples",
+      exampleInputs,
+      "",
+      "## Provenance",
+      `Source run: ${frontmatter.provenance.sourceRunId}`,
+      `Benchmark case: ${frontmatter.provenance.benchmarkCaseId}`,
+      `Generated at: ${frontmatter.provenance.generatedAt}`,
+      "Failure codes:",
+      failureCodes,
+      "",
+      "## Version Metadata",
+      `Artifact ID: ${frontmatter.artifactId}`,
+      `Version: ${frontmatter.version}`,
+      `Schema version: ${frontmatter.schemaVersion}`,
+      `Content hash: ${frontmatter.storage.contentHash}`,
+      `Artifact URI: ${frontmatter.storage.artifactUri ?? "n/a"}`,
+      `Tags: ${tagLine}`
+    ].join("\n");
+  }
 
   return [
     "---",
@@ -389,15 +533,33 @@ function renderArtifactMarkdown(frontmatter: AgentArtifactFrontmatter, summary: 
   ].join("\n");
 }
 
-function buildArtifactTags(benchmarkCase: AgentBenchmarkCase) {
-  return Array.from(
-    new Set([
-      benchmarkCase.expected.category.toLowerCase(),
-      benchmarkCase.expected.severity,
+function buildArtifactTags(benchmarkCase: AgentBenchmarkCase, domain: "support" | "excel") {
+  if (domain === "excel") {
+    if (!isExcelBenchmarkCase(benchmarkCase)) {
+      throw new Error(`Benchmark case ${benchmarkCase.id} is not an Excel benchmark case`);
+    }
+
+    const baseTags = [
+      benchmarkCase.difficulty,
+      ...benchmarkCase.tags,
+      ...(benchmarkCase.requiredConcepts || []).map((concept) => concept.toLowerCase()),
       ...tokenizeForRetrieval(benchmarkCase.title),
       ...tokenizeForRetrieval(benchmarkCase.userPrompt)
-    ])
-  ).slice(0, 12);
+    ];
+    return Array.from(new Set(baseTags.filter(Boolean))).slice(0, 12);
+  }
+
+  if (!isSupportBenchmarkCase(benchmarkCase)) {
+    throw new Error(`Benchmark case ${benchmarkCase.id} is not a support benchmark case`);
+  }
+
+  const baseTags = [
+    benchmarkCase.expected.category.toLowerCase(),
+    benchmarkCase.expected.severity,
+    ...tokenizeForRetrieval(benchmarkCase.title),
+    ...tokenizeForRetrieval(benchmarkCase.userPrompt)
+  ];
+  return Array.from(new Set(baseTags.filter(Boolean))).slice(0, 12);
 }
 
 function buildResolutionSteps(suggestedResolution: string) {
@@ -420,6 +582,9 @@ function buildRetrievalText(frontmatter: AgentArtifactFrontmatter) {
     frontmatter.category,
     frontmatter.classification,
     frontmatter.severity,
+    frontmatter.formulaPattern,
+    frontmatter.concepts?.join(" "),
+    frontmatter.difficulty,
     frontmatter.tags.join(" "),
     frontmatter.exampleInputs.join(" "),
     frontmatter.resolutionSteps.join(" ")

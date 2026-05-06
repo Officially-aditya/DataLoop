@@ -23,12 +23,14 @@ test("keeps the same artifact version when the rendered content is unchanged", a
     runId: "run-1",
     benchmarkCase,
     issues,
+    domain: "support",
     generatedAt: "2026-04-23T00:00:00.000Z"
   });
   const repeated = buildKnowledgeArtifact({
     runId: "run-2",
     benchmarkCase,
     issues,
+    domain: "support",
     existingArtifact: original,
     generatedAt: "2026-04-24T00:00:00.000Z"
   });
@@ -46,6 +48,7 @@ test("increments the artifact version when the artifact content changes", async 
     runId: "run-1",
     benchmarkCase,
     issues,
+    domain: "support",
     generatedAt: "2026-04-23T00:00:00.000Z"
   });
   const updated = buildKnowledgeArtifact({
@@ -53,11 +56,12 @@ test("increments the artifact version when the artifact content changes", async 
     benchmarkCase: {
       ...benchmarkCase,
       expected: {
-        ...benchmarkCase.expected,
-        suggestedResolution: `${benchmarkCase.expected.suggestedResolution} Confirm the wallet is using the correct asset.`
+        ...(benchmarkCase as any).expected,
+        suggestedResolution: `${(benchmarkCase as any).expected.suggestedResolution} Confirm the wallet is using the correct asset.`
       }
     },
     issues,
+    domain: "support",
     existingArtifact: original,
     generatedAt: "2026-04-24T00:00:00.000Z"
   });
@@ -76,9 +80,9 @@ test("loads persisted artifacts from the manifest and retrieves only the best le
   const walletCase = await loadBenchmarkCase("wallet-extension");
   const scamCase = await loadBenchmarkCase("malicious-approval");
   const artifacts = mergeArtifactSets([], [
-    buildKnowledgeArtifact({ runId: "run-1", benchmarkCase: gasCase, issues, generatedAt: "2026-04-23T00:00:00.000Z" }),
-    buildKnowledgeArtifact({ runId: "run-1", benchmarkCase: walletCase, issues, generatedAt: "2026-04-23T00:00:00.000Z" }),
-    buildKnowledgeArtifact({ runId: "run-1", benchmarkCase: scamCase, issues, generatedAt: "2026-04-23T00:00:00.000Z" })
+    buildKnowledgeArtifact({ runId: "run-1", benchmarkCase: gasCase, issues, domain: "support", generatedAt: "2026-04-23T00:00:00.000Z" }),
+    buildKnowledgeArtifact({ runId: "run-1", benchmarkCase: walletCase, issues, domain: "support", generatedAt: "2026-04-23T00:00:00.000Z" }),
+    buildKnowledgeArtifact({ runId: "run-1", benchmarkCase: scamCase, issues, domain: "support", generatedAt: "2026-04-23T00:00:00.000Z" })
   ]);
 
   await persistArtifactLibrary({ artifactLibraryDir, artifactManifestPath }, artifacts);

@@ -4,7 +4,6 @@ import path from "node:path";
 import {
   SUPPORT_CATEGORIES,
   SUPPORT_SEVERITIES,
-  type AgentArtifactManifest,
   type AgentBenchmarkCase,
   type AgentBenchmarkCaseRun,
   type AgentBenchmarkComparison,
@@ -14,7 +13,11 @@ import {
   type AgentKnowledgeArtifact,
   type AgentRunSummary,
   type AgentStructuredResponse,
-  type AgentTrainingExample
+  type AgentTrainingExample,
+  type ExcelBenchmarkCase,
+  type ExcelStructuredResponse,
+  type SupportBenchmarkCase,
+  type SupportStructuredResponse
 } from "@dataloop/shared";
 
 import {
@@ -28,6 +31,13 @@ import {
 import type { AgentConfig } from "./config";
 import { createAgentModel, type AgentModel } from "./model";
 import { publishFailuresToPlatform, type PublishResult } from "./platform";
+import {
+  artifactDomainForAgentDomain,
+  buildExpectedExcelResponse,
+  buildExpectedStructuredResponse,
+  isExcelBenchmarkCase,
+  isSupportBenchmarkCase
+} from "./responses";
 
 export interface AgentRunResult {
   runId: string;
@@ -44,7 +54,7 @@ export interface AgentRunResult {
 }
 
 export async function runAgentBenchmark(config: AgentConfig): Promise<AgentRunResult> {
-  const benchmarkCases = await loadBenchmarkCases(config.benchmarkPath);
+  const benchmarkCases = await loadBenchmarkCases(config.benchmarkPath, config.domain);
   const runId = new Date().toISOString().replaceAll(":", "-");
   const suiteLabel = path.basename(config.benchmarkPath, path.extname(config.benchmarkPath));
   const outputPath = path.join(config.outputDir, runId);
@@ -53,13 +63,14 @@ export async function runAgentBenchmark(config: AgentConfig): Promise<AgentRunRe
   await fs.mkdir(outputPath, { recursive: true });
 
   const existingLibrary = await loadArtifactLibrary(config);
-  const baselineRuns = await runBenchmarkCases(model, benchmarkCases, config.minConfidence, () => []);
+  const baselineRuns = await runBenchmarkCases(model, benchmarkCases, config.minConfidence, () => [], config.domain);
   const { failures, corrections, artifacts } = buildFailureAndCorrectionRecords(
     runId,
     benchmarkCases,
     baselineRuns,
     existingLibrary,
-    config.minConfidence
+    config.minConfidence,
+    config.domain
   );
   const persistedLibrary = await promoteArtifacts(config, existingLibrary, artifacts, {
     runId,
@@ -74,7 +85,8 @@ export async function runAgentBenchmark(config: AgentConfig): Promise<AgentRunRe
       persistedLibrary.artifacts,
       config.retrievalLimit,
       config.retrievalMinScore
-    )
+    ),
+    config.domain
   );
   const comparisons = buildComparisons(baselineRuns, artifactRuns);
   const publishResult = await publishFailuresToPlatform(
@@ -130,7 +142,7 @@ export async function runAgentBenchmark(config: AgentConfig): Promise<AgentRunRe
   };
 }
 
-async function loadBenchmarkCases(filePath: string) {
+async function loadBenchmarkCases(filePath: string, domain: "support" | "excel") {
   const file = await fs.readFile(filePath, "utf8");
   const parsed = JSON.parse(file) as unknown;
 
@@ -138,14 +150,36 @@ async function loadBenchmarkCases(filePath: string) {
     throw new Error("Benchmark file must contain an array");
   }
 
-  return parsed as AgentBenchmarkCase[];
+  const benchmarkCases = parsed as AgentBenchmarkCase[];
+  validateBenchmarkCases(benchmarkCases, domain, filePath);
+
+  return benchmarkCases;
+}
+
+function validateBenchmarkCases(
+  benchmarkCases: AgentBenchmarkCase[],
+  domain: "support" | "excel",
+  filePath: string
+) {
+  const invalidCaseIds = benchmarkCases
+    .filter((benchmarkCase) =>
+      domain === "excel" ? !isExcelBenchmarkCase(benchmarkCase) : !isSupportBenchmarkCase(benchmarkCase)
+    )
+    .map((benchmarkCase) => benchmarkCase.id ?? "<missing id>");
+
+  if (invalidCaseIds.length > 0) {
+    throw new Error(
+      `Benchmark file ${filePath} contains ${invalidCaseIds.length} case(s) that do not match AGENT_DOMAIN=${domain}: ${invalidCaseIds.join(", ")}`
+    );
+  }
 }
 
 async function runBenchmarkCases(
   model: AgentModel,
   benchmarkCases: AgentBenchmarkCase[],
   minConfidence: number,
-  getRetrievedArtifacts: (benchmarkCase: AgentBenchmarkCase) => AgentKnowledgeArtifact[]
+  getRetrievedArtifacts: (benchmarkCase: AgentBenchmarkCase) => AgentKnowledgeArtifact[],
+  domain: "support" | "excel"
 ) {
   const runs: AgentBenchmarkCaseRun[] = [];
 
@@ -155,7 +189,8 @@ async function runBenchmarkCases(
         model,
         benchmarkCase,
         minConfidence,
-        getRetrievedArtifacts(benchmarkCase)
+        getRetrievedArtifacts(benchmarkCase),
+        domain
       )
     );
   }
@@ -168,11 +203,15 @@ function buildFailureAndCorrectionRecords(
   benchmarkCases: AgentBenchmarkCase[],
   baselineRuns: AgentBenchmarkCaseRun[],
   existingLibrary: ArtifactLibrary,
-  minConfidence: number
+  minConfidence: number,
+  domain: "support" | "excel"
 ) {
   const benchmarkCasesById = new Map(benchmarkCases.map((benchmarkCase) => [benchmarkCase.id, benchmarkCase]));
+  const expectedArtifactDomain = artifactDomainForAgentDomain(domain);
   const existingArtifactsByCaseId = new Map(
-    existingLibrary.artifacts.map((artifact) => [artifact.benchmarkCaseId, artifact])
+    existingLibrary.artifacts
+      .filter((artifact) => artifact.frontmatter.domain === expectedArtifactDomain)
+      .map((artifact) => [artifact.benchmarkCaseId, artifact])
   );
   const failures: AgentFailureRecord[] = [];
   const corrections: AgentCorrectionRecord[] = [];
@@ -204,14 +243,15 @@ function buildFailureAndCorrectionRecords(
       runId,
       benchmarkCase,
       issues: baselineRun.evaluation.issues,
+      domain,
       ...(existingArtifact ? { existingArtifact } : {})
     });
     const correctionRecord: AgentCorrectionRecord = {
       runId,
       benchmarkCaseId: benchmarkCase.id,
-      correctedResponse: benchmarkCase.expected,
+      correctedResponse: buildExpectedStructuredResponse(benchmarkCase),
       knowledgeArtifact,
-      trainingExample: buildTrainingExample(benchmarkCase, baselineRun.evaluation.issues, minConfidence),
+      trainingExample: buildTrainingExample(benchmarkCase, baselineRun.evaluation.issues, minConfidence, domain),
       sourceFailureCodes: baselineRun.evaluation.issues.map((issue) => issue.code)
     };
 
@@ -240,7 +280,19 @@ async function promoteArtifacts(
   return persistArtifactLibrary(config, mergedArtifacts, context);
 }
 
-function buildSystemPrompt(minConfidence: number) {
+function buildSystemPrompt(minConfidence: number, domain: "support" | "excel") {
+  if (domain === "excel") {
+    return [
+      "You are an Excel Q&A specialist agent.",
+      "Return JSON only with these keys: formula (optional), explanation, confidence.",
+      "The formula field should contain the Excel formula when the question asks for one.",
+      "The explanation field should explain the formula or answer the question.",
+      `Confidence must be a number between 0 and 1 and should stay above ${minConfidence} only when you are genuinely certain.`,
+      "If retrieved knowledge artifacts are provided, follow their specialist guidance over generic prior knowledge.",
+      "Do not include markdown fences or explanation outside the JSON object."
+    ].join(" ");
+  }
+
   return [
     "You are a builder support triage agent.",
     "Return JSON only with these keys: category, severity, requiresHuman, summary, suggestedResolution, confidence.",
@@ -256,15 +308,16 @@ async function executeBenchmarkCase(
   model: AgentModel,
   benchmarkCase: AgentBenchmarkCase,
   minConfidence: number,
-  retrievedArtifacts: AgentKnowledgeArtifact[]
+  retrievedArtifacts: AgentKnowledgeArtifact[],
+  domain: "support" | "excel"
 ): Promise<AgentBenchmarkCaseRun> {
   const rawModelOutput = await model.generate({
-    systemPrompt: buildSystemPrompt(minConfidence),
+    systemPrompt: buildSystemPrompt(minConfidence, domain),
     benchmarkCase,
     retrievedArtifacts
   });
   const parsedModelOutput = parseStructuredResponse(rawModelOutput);
-  const issues = evaluateResponse(parsedModelOutput, benchmarkCase.expected, minConfidence);
+  const issues = evaluateResponse(parsedModelOutput, benchmarkCase, minConfidence, domain);
 
   return {
     benchmarkCaseId: benchmarkCase.id,
@@ -312,8 +365,9 @@ function extractJsonCandidate(raw: string) {
 
 function evaluateResponse(
   parsed: AgentStructuredResponse | null,
-  expected: AgentStructuredResponse,
-  minConfidence: number
+  benchmarkCase: AgentBenchmarkCase,
+  minConfidence: number,
+  domain: "support" | "excel"
 ): AgentEvaluationIssue[] {
   if (parsed === null) {
     return [
@@ -324,6 +378,18 @@ function evaluateResponse(
     ];
   }
 
+  if (domain === "excel") {
+    return evaluateExcelResponse(parsed as ExcelStructuredResponse, benchmarkCase as ExcelBenchmarkCase, minConfidence);
+  }
+
+  return evaluateSupportResponse(parsed as SupportStructuredResponse, (benchmarkCase as SupportBenchmarkCase).expected, minConfidence);
+}
+
+function evaluateSupportResponse(
+  parsed: SupportStructuredResponse,
+  expected: SupportStructuredResponse,
+  minConfidence: number
+): AgentEvaluationIssue[] {
   const issues: AgentEvaluationIssue[] = [];
 
   if (
@@ -375,16 +441,99 @@ function evaluateResponse(
   return issues;
 }
 
+function evaluateExcelResponse(
+  parsed: ExcelStructuredResponse,
+  benchmarkCase: ExcelBenchmarkCase,
+  minConfidence: number
+): AgentEvaluationIssue[] {
+  const issues: AgentEvaluationIssue[] = [];
+
+  if (
+    typeof parsed.explanation !== "string" ||
+    parsed.explanation.trim().length === 0 ||
+    typeof parsed.confidence !== "number" ||
+    (parsed.formula !== undefined && typeof parsed.formula !== "string")
+  ) {
+    issues.push({
+      code: "INVALID_SCHEMA",
+      message: "Model output did not satisfy the required JSON schema."
+    });
+
+    return issues;
+  }
+
+  if (parsed.confidence < minConfidence) {
+    issues.push({
+      code: "LOW_CONFIDENCE",
+      message: `Model confidence ${parsed.confidence} was below the minimum threshold ${minConfidence}.`
+    });
+  }
+
+  // Check formula if expected
+  if (benchmarkCase.expectedFormula && benchmarkCase.expectedFormula.trim().length > 0) {
+    if (!parsed.formula) {
+      issues.push({
+        code: "FORMULA_MISMATCH",
+        message: "Expected a formula but none was provided."
+      });
+    } else if (!isFormulaMatch(parsed.formula, benchmarkCase.expectedFormula, benchmarkCase.acceptableAlternatives)) {
+      issues.push({
+        code: "FORMULA_MISMATCH",
+        message: `Formula mismatch. Expected: ${benchmarkCase.expectedFormula}, Got: ${parsed.formula}`
+      });
+    }
+  }
+
+  // Check required concepts
+  if (benchmarkCase.requiredConcepts && benchmarkCase.requiredConcepts.length > 0) {
+    const missingConcepts = benchmarkCase.requiredConcepts.filter(
+      (concept) => !parsed.explanation.toLowerCase().includes(concept.toLowerCase())
+    );
+
+    if (missingConcepts.length > 0) {
+      issues.push({
+        code: "MISSING_CONCEPTS",
+        message: `Missing required concepts: ${missingConcepts.join(", ")}`
+      });
+    }
+  }
+
+  return issues;
+}
+
+function isFormulaMatch(actual: string, expected: string, alternatives?: string[]): boolean {
+  const normalize = (formula: string) =>
+    formula.replace(/\s+/g, "").replace(/\$/g, "").toUpperCase();
+
+  const normalizedActual = normalize(actual);
+  const normalizedExpected = normalize(expected);
+
+  if (normalizedActual === normalizedExpected) {
+    return true;
+  }
+
+  if (alternatives) {
+    return alternatives.some((alt) => normalize(alt) === normalizedActual);
+  }
+
+  return false;
+}
+
 function buildTrainingExample(
   benchmarkCase: AgentBenchmarkCase,
   issues: AgentEvaluationIssue[],
-  minConfidence: number
+  minConfidence: number,
+  domain: "support" | "excel"
 ): AgentTrainingExample {
+  const assistantContent = domain === "excel"
+    ? JSON.stringify(buildExpectedExcelResponse(benchmarkCase as ExcelBenchmarkCase))
+    : JSON.stringify((benchmarkCase as SupportBenchmarkCase).expected);
+
   return {
     messages: [
       {
         role: "system",
-        content: buildSystemPrompt(minConfidence)
+        content: buildSystemPrompt(minConfidence, domain)
       },
       {
         role: "user",
@@ -392,7 +541,7 @@ function buildTrainingExample(
       },
       {
         role: "assistant",
-        content: JSON.stringify(benchmarkCase.expected)
+        content: assistantContent
       }
     ],
     metadata: {
@@ -568,6 +717,13 @@ function renderBenchmarkComparisonMarkdown(
       throw new Error(`Comparison report is missing run data for benchmark case ${benchmarkCase.id}`);
     }
 
+    const expectedOutput = isSupportBenchmarkCase(benchmarkCase)
+      ? benchmarkCase.expected
+      : {
+          ...buildExpectedExcelResponse(benchmarkCase),
+          concepts: benchmarkCase.requiredConcepts
+        };
+
     lines.push(
       "",
       `### ${benchmarkCase.title}`,
@@ -580,7 +736,7 @@ function renderBenchmarkComparisonMarkdown(
       "",
       "Expected output:",
       "",
-      formatJsonBlock(benchmarkCase.expected),
+      formatJsonBlock(expectedOutput),
       "",
       "Baseline output:",
       "",

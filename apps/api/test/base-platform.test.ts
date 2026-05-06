@@ -317,6 +317,21 @@ async function createTestApp() {
         rpcUrl: "http://localhost:8545",
         contractAddress,
         signerPrivateKey: `0x${"99".repeat(32)}`
+      },
+      agent: {
+        modelMode: "mock",
+        modelBaseUrl: null,
+        modelName: "test-model",
+        modelApiKey: null,
+        requestTeeVerification: false,
+        storage: {
+          enabled: false,
+          network: "testnet",
+          mode: "turbo",
+          rpcUrl: "https://evmrpc-testnet.0g.ai",
+          indexerUrl: "https://indexer-storage-testnet-turbo.0g.ai",
+          privateKey: null
+        }
       }
     },
     { platformService: service }

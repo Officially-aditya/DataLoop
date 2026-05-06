@@ -2,13 +2,16 @@ import cors from "@fastify/cors";
 import Fastify from "fastify";
 
 import { ApiError } from "./errors";
+import { createAgentService, type AgentService } from "./agent/service";
 import { createBasePlatformService, type BasePlatformService } from "./platform/service";
 import type { ApiConfig } from "./config";
+import { registerAgentRoutes } from "./routes/agent";
 import { registerBasePlatformRoutes } from "./routes/base-platform";
 import { registerHealthRoutes } from "./routes/health";
 
 export interface AppDependencies {
   platformService?: BasePlatformService;
+  agentService?: AgentService;
 }
 
 export async function buildApp(config: ApiConfig, dependencies: AppDependencies = {}) {
@@ -21,9 +24,11 @@ export async function buildApp(config: ApiConfig, dependencies: AppDependencies 
   });
 
   const platformService = dependencies.platformService ?? createBasePlatformService(config);
+  const agentService = dependencies.agentService ?? createAgentService(config.agent);
 
   await registerHealthRoutes(app);
   await registerBasePlatformRoutes(app, platformService);
+  await registerAgentRoutes(app, agentService);
 
   app.setErrorHandler((error, _request, reply) => {
     if (typeof error === "object" && error !== null && "validation" in error) {

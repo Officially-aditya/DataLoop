@@ -23,6 +23,7 @@ test("publishes failure and correction metadata with artifact manifest details",
         message: "Synthetic issue"
       }
     ],
+    domain: "support",
     generatedAt: "2026-04-23T00:00:00.000Z"
   });
   const failure: AgentFailureRecord = {
@@ -43,7 +44,7 @@ test("publishes failure and correction metadata with artifact manifest details",
   const correction: AgentCorrectionRecord = {
     runId: "run-1",
     benchmarkCaseId: benchmarkCase.id,
-    correctedResponse: benchmarkCase.expected,
+    correctedResponse: (benchmarkCase as any).expected,
     knowledgeArtifact,
     trainingExample: {
       messages: [],
@@ -56,6 +57,7 @@ test("publishes failure and correction metadata with artifact manifest details",
     sourceFailureCodes: ["INVALID_JSON"]
   };
   const config: AgentConfig = {
+    domain: "support",
     benchmarkPath: fixturePath,
     outputDir: path.resolve(__dirname, "..", "runs"),
     artifactLibraryDir: path.resolve(__dirname, "..", "knowledge"),

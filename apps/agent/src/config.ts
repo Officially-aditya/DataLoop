@@ -2,8 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 export type AgentModelMode = "mock" | "openai-compatible";
+export type AgentDomain = "support" | "excel";
 
 export interface AgentConfig {
+  domain: AgentDomain;
   benchmarkPath: string;
   outputDir: string;
   artifactLibraryDir: string;
@@ -27,10 +29,13 @@ export interface AgentConfig {
 export function getAgentConfig(env: NodeJS.ProcessEnv = process.env): AgentConfig {
   const workspaceRoot = findWorkspaceRoot(process.cwd());
   const modelMode = parseModelMode(env.AGENT_MODEL_MODE);
+  const domain = parseDomain(env.AGENT_DOMAIN);
   const benchmarkPath = resolveWorkspacePath(
     workspaceRoot,
     env.AGENT_BENCHMARK_PATH,
-    "apps/agent/fixtures/support-benchmark.json"
+    domain === "excel"
+      ? "apps/agent/fixtures/excel-qna-benchmark.json"
+      : "apps/agent/fixtures/support-benchmark.json"
   );
   const outputDir = resolveWorkspacePath(workspaceRoot, env.AGENT_OUTPUT_DIR, "apps/agent/runs");
   const artifactLibraryDir = resolveWorkspacePath(
@@ -45,6 +50,7 @@ export function getAgentConfig(env: NodeJS.ProcessEnv = process.env): AgentConfi
   const registerDatasetVersion = parseBoolean(env.AGENT_REGISTER_DATASET_VERSION ?? "false");
 
   return {
+    domain,
     benchmarkPath,
     outputDir,
     artifactLibraryDir,
@@ -53,7 +59,7 @@ export function getAgentConfig(env: NodeJS.ProcessEnv = process.env): AgentConfi
     retrievalLimit: parseRetrievalLimit(env.AGENT_RETRIEVAL_LIMIT),
     retrievalMinScore: parseRetrievalMinScore(env.AGENT_RETRIEVAL_MIN_SCORE),
     modelMode,
-    modelName: requireNonEmpty(env.AGENT_MODEL_NAME ?? "qwen-2.5-7b-instruct", "AGENT_MODEL_NAME"),
+    modelName: requireNonEmpty(env.AGENT_MODEL_NAME ?? "qwen/qwen-2.5-7b-instruct", "AGENT_MODEL_NAME"),
     modelBaseUrl:
       modelMode === "openai-compatible"
         ? requireNonEmpty(env.AGENT_MODEL_BASE_URL, "AGENT_MODEL_BASE_URL")
@@ -120,6 +126,10 @@ function resolveWorkspacePath(workspaceRoot: string, value: string | undefined, 
 
 function parseModelMode(value: string | undefined): AgentModelMode {
   return value === "openai-compatible" ? "openai-compatible" : "mock";
+}
+
+function parseDomain(value: string | undefined): AgentDomain {
+  return value === "excel" ? "excel" : "support";
 }
 
 function parseConfidence(value: string | undefined) {

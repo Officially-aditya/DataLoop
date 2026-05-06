@@ -22,6 +22,7 @@ test("builds compact artifact prompt context without raw markdown sections", asy
         message: "Synthetic issue"
       }
     ],
+    domain: "support",
     generatedAt: "2026-04-23T00:00:00.000Z"
   });
 
@@ -43,9 +44,11 @@ test("sends compact artifact snippets to the OpenAI-compatible model backend", a
         message: "Synthetic issue"
       }
     ],
+    domain: "support",
     generatedAt: "2026-04-23T00:00:00.000Z"
   });
   const config: AgentConfig = {
+    domain: "support",
     benchmarkPath: fixturePath,
     outputDir: path.resolve(__dirname, "..", "runs"),
     artifactLibraryDir: path.resolve(__dirname, "..", "knowledge"),
@@ -80,7 +83,7 @@ test("sends compact artifact snippets to the OpenAI-compatible model backend", a
         choices: [
           {
             message: {
-              content: JSON.stringify(benchmarkCase.expected)
+              content: JSON.stringify((benchmarkCase as any).expected)
             }
           }
         ]
@@ -111,7 +114,7 @@ test("sends compact artifact snippets to the OpenAI-compatible model backend", a
 
     assert.ok(artifactMessage);
 
-    assert.equal(output, JSON.stringify(benchmarkCase.expected));
+    assert.equal(output, JSON.stringify((benchmarkCase as any).expected));
     assert.equal(firstRequest.url, "https://example.test/chat/completions");
     assert.match(artifactMessage.content, /artifactId:/);
     assert.doesNotMatch(artifactMessage.content, /## /);

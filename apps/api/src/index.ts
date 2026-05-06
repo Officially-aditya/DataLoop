@@ -1,7 +1,12 @@
-import "dotenv/config";
+import { resolve } from "node:path";
+
+import { config as loadEnv } from "dotenv";
 
 import { buildApp } from "./app";
 import { getApiConfig } from "./config";
+
+loadEnv({ path: resolve(process.cwd(), ".env") });
+loadEnv({ path: resolve(process.cwd(), "../../.env") });
 
 async function start() {
   const config = getApiConfig();

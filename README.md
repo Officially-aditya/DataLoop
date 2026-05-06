@@ -6,11 +6,11 @@ Week 1 foundation scaffold for the DataLoop platform, now extended with a Week 2
 
 | Property | Value |
 |----------|-------|
-| Network  | 0G Mainnet |
-| Chain ID | 16661 |
+| Network  | 0G-Galileo-Testnet |
+| Chain ID | 16602 |
 | Token    | 0G |
-| RPC      | https://evmrpc.0g.ai |
-| Explorer | https://chainscan.0g.ai |
+| RPC      | https://evmrpc-testnet.0g.ai |
+| Explorer | https://chainscan-galileo.0g.ai |
 
 ## Workspace layout
 
@@ -96,10 +96,25 @@ The Week 2 workspace introduces one focused demo agent:
    - set `AGENT_MODEL_BASE_URL`, `AGENT_MODEL_NAME`, and `AGENT_MODEL_API_KEY`
    - run `npm run agent:run`
 
-For 0G Compute direct API usage, set `AGENT_MODEL_BASE_URL` to the provider service URL plus
-`/v1/proxy`, and set `AGENT_MODEL_API_KEY` to the `app-sk-...` secret generated for that provider.
-For the local 0G proxy server, point `AGENT_MODEL_BASE_URL` at the proxy's OpenAI-compatible base URL.
+For 0G Compute Router testnet usage, set `AGENT_MODEL_BASE_URL` to
+`https://router-api-testnet.integratenetwork.work/v1`, set `AGENT_MODEL_NAME` to
+`qwen/qwen-2.5-7b-instruct`, and keep `AGENT_MODEL_API_KEY` server-side only.
+For Direct provider usage, set `AGENT_MODEL_BASE_URL` to the provider service URL plus `/v1/proxy`,
+and set `AGENT_MODEL_API_KEY` to the provider-generated `app-sk-...` secret.
 Relative `AGENT_*` file paths resolve from the repository root.
+
+For 0G Storage uploads from the Agent API, set:
+
+- `AGENT_STORAGE_ENABLED=true`
+- `AGENT_STORAGE_NETWORK=testnet`
+- `AGENT_STORAGE_MODE=turbo`
+- `AGENT_STORAGE_RPC_URL=https://evmrpc-testnet.0g.ai`
+- `AGENT_STORAGE_INDEXER_URL=https://indexer-storage-testnet-turbo.0g.ai`
+- `AGENT_STORAGE_PRIVATE_KEY=<funded 0G wallet private key>` or `ZG_PRIVATE_KEY=<funded 0G wallet private key>`
+
+Uploaded artifacts are stored through `@0gfoundation/0g-storage-ts-sdk`. If storage credentials
+are missing or the wallet has no gas, the API still creates the artifact and returns a storage
+status of `unavailable` with the upload error.
 
 Artifacts are written under `apps/agent/runs`.
 Each run now writes:

@@ -1,3 +1,5 @@
+import type { WalletClientConfig } from "@dataloop/shared";
+
 export interface EthereumProvider {
   isMetaMask?: boolean;
   request?: (args: { method: string; params?: unknown[] | object }) => Promise<unknown>;
@@ -54,6 +56,31 @@ export async function switchWalletChain(provider: EthereumProvider, chainId: num
   });
 }
 
+export async function switchOrAddWalletChain(provider: EthereumProvider, config: WalletClientConfig) {
+  try {
+    await switchWalletChain(provider, config.chainId);
+  } catch (error) {
+    if (!isUnknownChainError(error)) {
+      throw error;
+    }
+
+    await provider.request?.({
+      method: "wallet_addEthereumChain",
+      params: [
+        {
+          chainId: `0x${config.chainId.toString(16)}`,
+          chainName: config.chainName,
+          nativeCurrency: config.nativeCurrency,
+          rpcUrls: [config.rpcUrl],
+          blockExplorerUrls: [config.blockExplorerUrl]
+        }
+      ]
+    });
+
+    await switchWalletChain(provider, config.chainId);
+  }
+}
+
 export function parseHexChainId(chainId: string | null): number | null {
   if (chainId === null || !chainId.startsWith("0x")) {
     return null;
@@ -65,4 +92,13 @@ export function parseHexChainId(chainId: string | null): number | null {
 
 function isString(value: unknown): value is string {
   return typeof value === "string";
+}
+
+function isUnknownChainError(error: unknown) {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+
+  const candidate = error as { code?: unknown; data?: { originalError?: { code?: unknown } } };
+  return candidate.code === 4902 || candidate.data?.originalError?.code === 4902;
 }

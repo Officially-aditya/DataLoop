@@ -1,3 +1,4 @@
+// Legacy support domain types (kept for backward compatibility)
 export const SUPPORT_CATEGORIES = [
   "NETWORK_CONFIGURATION",
   "INSUFFICIENT_FUNDS",
@@ -12,7 +13,19 @@ export const SUPPORT_SEVERITIES = ["low", "medium", "high", "critical"] as const
 export type SupportCategory = (typeof SUPPORT_CATEGORIES)[number];
 export type SupportSeverity = (typeof SUPPORT_SEVERITIES)[number];
 
-export interface AgentStructuredResponse {
+// Excel Q&A domain types
+export const EXCEL_ANSWER_TYPES = ["formula", "explanation", "debugging", "task"] as const;
+export const EXCEL_DIFFICULTIES = ["easy", "medium", "hard"] as const;
+
+export type ExcelAnswerType = (typeof EXCEL_ANSWER_TYPES)[number];
+export type ExcelDifficulty = (typeof EXCEL_DIFFICULTIES)[number];
+
+// Generic agent domain type
+export type AgentDomain = "support" | "excel";
+export type AgentArtifactDomain = "builder-support" | "excel-qna";
+
+// Support domain structured response
+export interface SupportStructuredResponse {
   category: SupportCategory;
   severity: SupportSeverity;
   requiresHuman: boolean;
@@ -21,13 +34,41 @@ export interface AgentStructuredResponse {
   confidence: number;
 }
 
-export interface AgentBenchmarkCase {
+// Excel domain structured response
+export interface ExcelStructuredResponse {
+  formula?: string;
+  explanation: string;
+  confidence: number;
+}
+
+// Union type for all structured responses
+export type AgentStructuredResponse = SupportStructuredResponse | ExcelStructuredResponse;
+
+// Support domain benchmark case
+export interface SupportBenchmarkCase {
   id: string;
   title: string;
   userPrompt: string;
-  expected: AgentStructuredResponse;
+  expected: SupportStructuredResponse;
   mockResponse: string;
 }
+
+// Excel domain benchmark case
+export interface ExcelBenchmarkCase {
+  id: string;
+  title: string;
+  userPrompt: string;
+  expectedAnswer: string;
+  expectedFormula?: string;
+  acceptableAlternatives?: string[];
+  requiredConcepts?: string[];
+  difficulty: ExcelDifficulty;
+  tags: string[];
+  mockResponse: string;
+}
+
+// Union type for all benchmark cases
+export type AgentBenchmarkCase = SupportBenchmarkCase | ExcelBenchmarkCase;
 
 export type AgentFailureReasonCode =
   | "INVALID_JSON"
@@ -35,7 +76,10 @@ export type AgentFailureReasonCode =
   | "LOW_CONFIDENCE"
   | "CATEGORY_MISMATCH"
   | "SEVERITY_MISMATCH"
-  | "HUMAN_REVIEW_MISMATCH";
+  | "HUMAN_REVIEW_MISMATCH"
+  | "FORMULA_MISMATCH"
+  | "MISSING_CONCEPTS"
+  | "INCORRECT_EXPLANATION";
 
 export interface AgentEvaluationIssue {
   code: AgentFailureReasonCode;
@@ -75,13 +119,19 @@ export interface AgentArtifactFrontmatter {
   artifactId: string;
   benchmarkCaseId: string;
   title: string;
-  domain: string;
+  domain: AgentArtifactDomain;
   schemaVersion: number;
   issuePattern: string;
-  category: SupportCategory;
-  classification: SupportCategory;
-  severity: SupportSeverity;
-  requiresHuman: boolean;
+  // Support domain fields (optional for Excel)
+  category?: SupportCategory;
+  classification?: SupportCategory;
+  severity?: SupportSeverity;
+  requiresHuman?: boolean;
+  // Excel domain fields (optional for Support)
+  formulaPattern?: string;
+  concepts?: string[];
+  difficulty?: ExcelDifficulty;
+  // Common fields
   version: number;
   tags: string[];
   resolutionSteps: string[];

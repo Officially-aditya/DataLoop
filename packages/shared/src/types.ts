@@ -11,4 +11,10 @@ export interface WalletClientConfig {
   chainId: number;
   chainName: string;
   rpcUrl: string;
+  blockExplorerUrl: string;
+  nativeCurrency: {
+    name: string;
+    symbol: string;
+    decimals: number;
+  };
 }
