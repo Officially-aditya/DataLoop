@@ -294,7 +294,7 @@ textarea:focus {
   letter-spacing: -0.03em;
 }
 
-.workspace-menu-heading > div {
+.workspace-menu-heading > div:last-child {
   height: 4px;
   margin-top: 10px;
   border-radius: 999px;
@@ -597,20 +597,20 @@ textarea:focus {
 .workspace-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  gap: 10px;
 }
 
 .meta-card {
-  min-height: 108px;
-  padding: 18px 20px;
-  border-radius: 28px;
+  min-height: 72px;
+  padding: 12px 16px;
+  border-radius: 20px;
 }
 
 .meta-card strong {
   display: block;
-  margin-top: 14px;
-  font-size: 1.08rem;
-  line-height: 1.45;
+  margin-top: 6px;
+  font-size: 1rem;
+  line-height: 1.25;
   word-break: break-word;
 }
 

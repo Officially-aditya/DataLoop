@@ -842,17 +842,12 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
       <section className="panel agent-chat-panel">
         <div className="agent-chat-heading">
           <div>
-            <p className="panel-eyebrow">Ask</p>
             <h2>Ask the Agent</h2>
           </div>
           <span className="library-badge library-badge-on">{libraryArtifacts.length} artifact file(s)</span>
         </div>
 
         <form className="agent-zap-composer" onSubmit={handleAgentQuestionSubmit}>
-          <div className="agent-composer-topline">
-            <span className="agent-composer-avatar">DL</span>
-            <span>Ask an Excel question</span>
-          </div>
           <textarea
             value={agentQuestion}
             onChange={(event) => {
@@ -1072,7 +1067,6 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
         <section className="workspace-shell">
           <div className="workspace-heading">
             <div>
-              <p className="eyebrow">{workspaceLabel(activeWorkspace)}</p>
               <h2>{workspaceTitle}</h2>
               <p className="section-copy">{workspaceCopy}</p>
             </div>
@@ -1327,15 +1321,6 @@ function WorkspaceToggle({
       </motion.aside>
     </div>
   );
-}
-
-function workspaceLabel(workspace: WorkspaceKey) {
-  switch (workspace) {
-    case "agent":
-      return "Agent";
-    case "artifacts":
-      return "Artifacts";
-  }
 }
 
 function MetricCard({
