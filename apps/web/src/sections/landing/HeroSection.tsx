@@ -1,5 +1,6 @@
 import { LandingButton } from "../../components/landing/LandingButton";
 import { Reveal } from "../../components/landing/Reveal";
+import { SplitText } from "../../components/landing/SplitText";
 
 interface HeroSectionProps {
   onLaunchApp: () => void;
@@ -13,7 +14,7 @@ export function HeroSection({ onLaunchApp }: HeroSectionProps) {
       <div className="landing-container landing-hero-grid">
         <Reveal className="landing-hero-copy">
           <p className="landing-kicker">Dataset Economy for AI Agents</p>
-          <h1>Build the dataset economy, one label at a time.</h1>
+          <SplitText text="Build the dataset economy, one label at a time." />
           <p>
             DataLoop turns expert corrections into versioned, on-chain datasets that AI developers can use to keep
             specialized agents improving after they ship.
@@ -37,9 +38,7 @@ export function HeroSection({ onLaunchApp }: HeroSectionProps) {
         <Reveal className="landing-hero-visual" delay="short">
           <div className="landing-orbit-card" aria-label="DataLoop infrastructure loop">
             <div className="landing-orbit-core">
-              <span className="landing-core-mark" aria-hidden="true" />
-              <strong>DatasetNFT</strong>
-              <small>versioned label graph</small>
+              <strong>DataLoop</strong>
             </div>
             {orbitNodes.map((node, index) => (
               <span className={`landing-orbit-node landing-orbit-node-${index + 1}`} key={node}>

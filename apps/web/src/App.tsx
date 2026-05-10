@@ -29,5 +29,18 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  return view === "dashboard" ? <DashboardPage /> : <LandingPage onLaunchApp={navigateToDashboard} />;
+  function navigateToLanding() {
+    if (window.location.pathname.startsWith("/app")) {
+      window.history.replaceState(null, "", "/");
+    }
+
+    setView("landing");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  return view === "dashboard" ? (
+    <DashboardPage onBackToIntro={navigateToLanding} />
+  ) : (
+    <LandingPage onLaunchApp={navigateToDashboard} />
+  );
 }

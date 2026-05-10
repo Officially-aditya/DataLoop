@@ -8,6 +8,32 @@ import {
   type ReactNode,
   type SetStateAction
 } from "react";
+import { AnimatePresence, animate, motion, useMotionValue, useTransform, type PanInfo } from "framer-motion";
+import {
+  Archive,
+  Briefcase,
+  Calendar,
+  Check,
+  CheckCircle,
+  ChevronLeft,
+  CircleDashed,
+  Cloud,
+  FileText,
+  Flag,
+  HelpCircle,
+  Home,
+  Inbox,
+  Menu,
+  MoreHorizontal,
+  Pin,
+  Plus,
+  Search,
+  Settings,
+  Star,
+  Tag,
+  User,
+  X
+} from "lucide-react";
 
 import { Panel } from "../components/Panel";
 import { StatusNotice } from "../components/StatusNotice";
@@ -41,12 +67,13 @@ import {
 import { generateBytes32Hex, hasMetadataReference, isAddress, isBytes32, isUintString } from "../lib/validation";
 import { getWalletConfig } from "../lib/wallet/config";
 import {
-    getInjectedWallet,
-    getWalletAccounts,
+    getWalletProviderOptions,
     getWalletChainId,
     parseHexChainId,
     requestWalletAccounts,
-    switchOrAddWalletChain
+    switchOrAddWalletChain,
+    type WalletProviderKind,
+    type WalletProviderOption
 } from "../lib/wallet/provider";
 
 interface NoticeState {
@@ -140,6 +167,10 @@ interface UploadArtifactFormState {
 
 type AgentAnswerMode = "raw" | "artifact";
 
+interface DashboardPageProps {
+  onBackToIntro: () => void;
+}
+
 const RECENT_TASKS_KEY = "dataloop.week1.recentTasks";
 const RECENT_DATASETS_KEY = "dataloop.week1.recentDatasets";
 const AGENT_LIBRARY_KEY = "dataloop.agent.artifactLibrary";
@@ -230,12 +261,14 @@ const MARKETPLACE_ARTIFACTS: DemoArtifact[] = [
   }
 ];
 
-export function DashboardPage() {
+export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
   const walletConfig = getWalletConfig();
-  const injectedWallet = useMemo(() => getInjectedWallet(), []);
+  const [walletOptions, setWalletOptions] = useState<WalletProviderOption[]>(() => getWalletProviderOptions());
+  const [selectedWalletId, setSelectedWalletId] = useState<WalletProviderKind | null>(null);
   const [walletAccount, setWalletAccount] = useState<string | null>(null);
   const [walletChainIdHex, setWalletChainIdHex] = useState<string | null>(null);
   const [walletNotice, setWalletNotice] = useState<NoticeState | null>(null);
+  const [networkPrompt, setNetworkPrompt] = useState<string | null>(null);
   const [isConnectingWallet, setIsConnectingWallet] = useState(false);
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceKey>("tasks");
   const [activeTaskSection, setActiveTaskSection] = useState<TaskSectionKey>("details");
@@ -288,6 +321,11 @@ export function DashboardPage() {
   const [isLoadingAgentWorkspace, setIsLoadingAgentWorkspace] = useState(false);
   const [isRunningAgent, setIsRunningAgent] = useState(false);
   const [isUploadingAgentArtifact, setIsUploadingAgentArtifact] = useState(false);
+  const activeWalletProvider = useMemo(
+    () => walletOptions.find((option) => option.id === selectedWalletId)?.provider ?? null,
+    [selectedWalletId, walletOptions]
+  );
+  const hasDetectedWallet = walletOptions.some((option) => option.provider !== null);
 
   useEffect(() => {
     writeStoredIds(RECENT_TASKS_KEY, recentTaskIds);
@@ -352,19 +390,31 @@ export function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (injectedWallet === null) {
+    if (typeof window === "undefined") {
       return;
     }
 
-    const syncWallet = async () => {
-      try {
-        const [accounts, chainId] = await Promise.all([
-          getWalletAccounts(injectedWallet),
-          getWalletChainId(injectedWallet)
-        ]);
+    const refreshWalletOptions = () => {
+      setWalletOptions(getWalletProviderOptions());
+    };
 
-        setWalletAccount(accounts[0] ?? null);
-        setWalletChainIdHex(chainId);
+    window.addEventListener("focus", refreshWalletOptions);
+    window.addEventListener("ethereum#initialized", refreshWalletOptions);
+
+    return () => {
+      window.removeEventListener("focus", refreshWalletOptions);
+      window.removeEventListener("ethereum#initialized", refreshWalletOptions);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeWalletProvider === null) {
+      return;
+    }
+
+    const syncWalletChain = async () => {
+      try {
+        setWalletChainIdHex(await getWalletChainId(activeWalletProvider));
       } catch (error) {
         setWalletNotice({
           tone: "error",
@@ -377,6 +427,14 @@ export function DashboardPage() {
       if (Array.isArray(accounts)) {
         const nextAccount = accounts.find((value): value is string => typeof value === "string") ?? null;
         setWalletAccount(nextAccount);
+        if (nextAccount === null) {
+          setSelectedWalletId(null);
+          setWalletChainIdHex(null);
+          setWalletNotice({
+            tone: "neutral",
+            message: "Wallet disconnected."
+          });
+        }
       }
     };
 
@@ -384,25 +442,32 @@ export function DashboardPage() {
       setWalletChainIdHex(typeof chainId === "string" ? chainId : null);
     };
 
-    void syncWallet();
-    injectedWallet.on?.("accountsChanged", handleAccountsChanged);
-    injectedWallet.on?.("chainChanged", handleChainChanged);
+    void syncWalletChain();
+    activeWalletProvider.on?.("accountsChanged", handleAccountsChanged);
+    activeWalletProvider.on?.("chainChanged", handleChainChanged);
 
     return () => {
-      injectedWallet.removeListener?.("accountsChanged", handleAccountsChanged);
-      injectedWallet.removeListener?.("chainChanged", handleChainChanged);
+      activeWalletProvider.removeListener?.("accountsChanged", handleAccountsChanged);
+      activeWalletProvider.removeListener?.("chainChanged", handleChainChanged);
     };
-  }, [injectedWallet]);
+  }, [activeWalletProvider]);
 
   const walletChainId = parseHexChainId(walletChainIdHex);
   const hasWalletConnection = walletAccount !== null && isAddress(walletAccount);
   const chainMismatch = walletChainId !== null && walletChainId !== walletConfig.chainId;
 
-  async function connectWallet() {
-    if (injectedWallet === null) {
+  async function connectWallet(walletId: WalletProviderKind) {
+    const option = walletOptions.find((candidate) => candidate.id === walletId);
+    const provider = option?.provider ?? null;
+    const walletLabel = option?.label ?? (walletId === "phantom" ? "Phantom Wallet" : "MetaMask");
+
+    if (provider === null) {
       setWalletNotice({
         tone: "error",
-        message: "No injected wallet detected. Install MetaMask or another EVM wallet."
+        message:
+          walletId === "phantom"
+            ? "Phantom Wallet was not detected. Install Phantom with EVM support, then try again."
+            : "MetaMask was not detected. Install MetaMask, then try again."
       });
       return;
     }
@@ -410,20 +475,21 @@ export function DashboardPage() {
     setIsConnectingWallet(true);
     setWalletNotice({
       tone: "neutral",
-      message: "Requesting wallet access..."
+      message: `Requesting ${walletLabel} access...`
     });
 
     try {
       const [accounts, chainId] = await Promise.all([
-        requestWalletAccounts(injectedWallet),
-        getWalletChainId(injectedWallet)
+        requestWalletAccounts(provider),
+        getWalletChainId(provider)
       ]);
 
+      setSelectedWalletId(walletId);
       setWalletAccount(accounts[0] ?? null);
       setWalletChainIdHex(chainId);
       setWalletNotice({
         tone: "success",
-        message: accounts[0] ? `Connected ${shortId(accounts[0])}` : "Wallet connected."
+        message: accounts[0] ? `Connected ${shortId(accounts[0])} with ${walletLabel}.` : `${walletLabel} connected.`
       });
     } catch (error) {
       setWalletNotice({
@@ -435,14 +501,38 @@ export function DashboardPage() {
     }
   }
 
+  function connectFirstAvailableWallet() {
+    const firstDetectedWallet = walletOptions.find((option) => option.provider !== null);
+
+    if (firstDetectedWallet === undefined) {
+      setWalletNotice({
+        tone: "error",
+        message: "No injected wallet detected. Install MetaMask or Phantom Wallet, then try again."
+      });
+      return;
+    }
+
+    void connectWallet(firstDetectedWallet.id);
+  }
+
+  function disconnectWallet() {
+    setSelectedWalletId(null);
+    setWalletAccount(null);
+    setWalletChainIdHex(null);
+    setWalletNotice({
+      tone: "neutral",
+      message: "Wallet disconnected for this session."
+    });
+  }
+
   async function handleSwitchNetwork() {
-    if (injectedWallet === null) {
+    if (activeWalletProvider === null) {
       return;
     }
 
     try {
-      await switchOrAddWalletChain(injectedWallet, walletConfig);
-      setWalletChainIdHex(await getWalletChainId(injectedWallet));
+      await switchOrAddWalletChain(activeWalletProvider, walletConfig);
+      setWalletChainIdHex(await getWalletChainId(activeWalletProvider));
       setWalletNotice({
         tone: "success",
         message: `Switched wallet to ${walletConfig.chainName}.`
@@ -453,6 +543,19 @@ export function DashboardPage() {
         message: formatError(error)
       });
     }
+  }
+
+  function handleSelectTestnet() {
+    setNetworkPrompt(null);
+  }
+
+  function handleSelectMainnet() {
+    const message = "we're working on that";
+    setNetworkPrompt(message);
+    setWalletNotice({
+      tone: "neutral",
+      message
+    });
   }
 
   const latestVersion = latestDatasetVersion?.version ?? null;
@@ -926,20 +1029,69 @@ export function DashboardPage() {
     { key: "library", label: "Library" },
     { key: "upload", label: "Upload" }
   ];
+  const taskWorkspaceRecentItems = recentTaskIds.length > 0 ? recentTaskIds : ["Quarterly Planning", "Review Specs", "Client Onboarding"];
+  const taskWorkspacePinnedItems = recentTaskIds.slice(0, 2);
+  const taskWorkspaceTitle =
+    activeTaskSection === "create"
+      ? "Create Task"
+      : activeTaskSection === "correction"
+        ? "Submit Correction"
+        : activeTaskSection === "session"
+          ? "Session Status"
+          : selectedTask
+            ? shortId(selectedTask.taskId)
+            : "Quarterly Planning";
+  const taskWorkspaceStatus =
+    activeTaskSection === "create"
+      ? "Draft"
+      : activeTaskSection === "correction"
+        ? "Ready"
+        : activeTaskSection === "session"
+          ? walletStatusLabel
+          : selectedTask
+            ? "Loaded"
+            : "In Progress";
+  const taskWorkspaceFooterForm =
+    activeTaskSection === "create"
+      ? "task-create-form"
+      : activeTaskSection === "correction"
+        ? "task-correction-form"
+        : undefined;
+  const taskWorkspaceFooterAction =
+    activeTaskSection === "create"
+      ? isCreatingTask
+        ? "Creating..."
+        : "Create Task"
+      : activeTaskSection === "correction"
+        ? isSubmittingCorrection
+          ? "Submitting..."
+          : "Submit Correction"
+        : activeTaskSection === "details"
+          ? isLoadingTask
+            ? "Loading..."
+            : "Load Task"
+          : hasWalletConnection
+            ? "Disconnect"
+            : "Connect";
 
   const sessionPanel = (
     <Panel
       title="Session Status"
       eyebrow="Access"
       action={
-        <button type="button" className="button button-secondary" onClick={connectWallet} disabled={isConnectingWallet}>
-          {hasWalletConnection ? "Reconnect" : "Connect"}
+        <button
+          type="button"
+          className="button button-secondary"
+          onClick={hasWalletConnection ? disconnectWallet : connectFirstAvailableWallet}
+          disabled={isConnectingWallet}
+        >
+          {hasWalletConnection ? "Disconnect" : "Connect"}
         </button>
       }
     >
       {walletNotice ? <StatusNotice tone={walletNotice.tone} message={walletNotice.message} /> : null}
       <div className="detail-grid compact-grid">
-        <Detail label="Injected provider" value={injectedWallet === null ? "Not found" : "Detected"} />
+        <Detail label="Injected provider" value={hasDetectedWallet ? "Detected" : "Not found"} />
         <Detail label="Connected account" value={walletAccount ?? "Not connected"} mono />
         <Detail
           label="Wallet chain"
@@ -960,6 +1112,378 @@ export function DashboardPage() {
         </div>
       ) : null}
     </Panel>
+  );
+
+  const taskWorkspaceBlock = (
+    <section className="task-notion-workspace" aria-label="Task workspace">
+      <aside className="task-notion-sidebar">
+        <div className="task-sidebar-header">
+          <div className="task-sidebar-mark">
+            <Star size={16} />
+          </div>
+          <h2>Project Space</h2>
+        </div>
+
+        <button type="button" className="task-sidebar-cta" onClick={() => setActiveTaskSection("create")}>
+          <Plus size={17} />
+          <span>New Task</span>
+        </button>
+
+        <label className="task-search">
+          <Search size={15} />
+          <input
+            value={taskLookupId}
+            onChange={(event) => setTaskLookupId(event.target.value)}
+            placeholder="Search tasks..."
+          />
+        </label>
+
+        <div className="task-sidebar-scroll">
+          <nav className="task-sidebar-nav" aria-label="Task sections">
+            {taskSectionItems.map((item) => (
+              <button
+                type="button"
+                key={item.key}
+                className={`task-sidebar-link ${activeTaskSection === item.key ? "task-sidebar-link-active" : ""}`}
+                onClick={() => setActiveTaskSection(item.key)}
+              >
+                {item.key === "details" ? <CheckCircle size={17} /> : null}
+                {item.key === "create" ? <Plus size={17} /> : null}
+                {item.key === "correction" ? <Inbox size={17} /> : null}
+                {item.key === "session" ? <Cloud size={17} /> : null}
+                <span>{item.label}</span>
+              </button>
+            ))}
+            <button type="button" className="task-sidebar-link">
+              <Archive size={17} />
+              <span>Archive</span>
+            </button>
+          </nav>
+
+          <div className="task-sidebar-group">
+            <h3>Pinned</h3>
+            {(taskWorkspacePinnedItems.length > 0 ? taskWorkspacePinnedItems : ["Quarterly Planning", "Launch Campaign"]).map(
+              (item) => (
+                <button
+                  type="button"
+                  className="task-sidebar-small-link"
+                  key={item}
+                  onClick={() => {
+                    if (item.startsWith("0x")) {
+                      setTaskLookupId(item);
+                      setActiveTaskSection("details");
+                      void loadTaskDetail(item);
+                    }
+                  }}
+                >
+                  <Pin size={14} />
+                  <span>{item.startsWith("0x") ? shortId(item) : item}</span>
+                </button>
+              )
+            )}
+          </div>
+
+          <div className="task-sidebar-group">
+            <h3>Recent Tasks</h3>
+            {taskWorkspaceRecentItems.slice(0, 6).map((item) => (
+              <button
+                type="button"
+                className="task-sidebar-small-link"
+                key={item}
+                onClick={() => {
+                  if (item.startsWith("0x")) {
+                    setTaskLookupId(item);
+                    setActiveTaskSection("details");
+                    void loadTaskDetail(item);
+                  }
+                }}
+              >
+                <FileText size={14} />
+                <span>{item.startsWith("0x") ? shortId(item) : item}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="task-sidebar-footer">
+          <button type="button" className="task-sidebar-link">
+            <Settings size={17} />
+            <span>Settings</span>
+          </button>
+          <button type="button" className="task-sidebar-link">
+            <HelpCircle size={17} />
+            <span>Help</span>
+          </button>
+        </div>
+      </aside>
+
+      <div className="task-notion-main">
+        <header className="task-notion-topbar">
+          <div className="task-breadcrumbs">
+            <strong>Workspace</strong>
+            <span>/</span>
+            <button type="button" onClick={() => setActiveTaskSection("details")}>
+              Tasks
+            </button>
+            <span>/</span>
+            <em>{taskWorkspaceTitle}</em>
+          </div>
+
+          <div className="task-topbar-actions">
+            <button type="button">Share</button>
+            <button type="button">Updates</button>
+            <button type="button">Favorite</button>
+            <span />
+            <button type="button" aria-label="Favorite task">
+              <Star size={18} />
+            </button>
+            <button type="button" aria-label="Task options">
+              <MoreHorizontal size={18} />
+            </button>
+            <div className="task-avatar" aria-hidden="true">
+              DL
+            </div>
+          </div>
+        </header>
+
+        <main className="task-document-canvas">
+          <div className="task-document-inner">
+            <div className="task-document-header">
+              <div className="task-document-icon" aria-hidden="true">
+                <FileText size={46} />
+              </div>
+              <h1>{taskWorkspaceTitle}</h1>
+            </div>
+
+            <div className="task-metadata-row">
+              <div className="task-property">
+                <Calendar size={16} />
+                <span>{formatDateTime(new Date().toISOString())}</span>
+              </div>
+              <div className="task-property-divider" />
+              <div className="task-property">
+                <CircleDashed size={16} />
+                <span className="task-status-chip">
+                  <i />
+                  {taskWorkspaceStatus}
+                </span>
+              </div>
+              <div className="task-property-divider" />
+              <div className="task-property">
+                <Flag size={16} />
+                <span className="task-priority-chip">High Priority</span>
+              </div>
+              <div className="task-property-divider" />
+              <div className="task-property">
+                <Tag size={16} />
+                <span>Planning</span>
+              </div>
+              <button type="button" className="task-add-property" aria-label="Add property">
+                <Plus size={17} />
+              </button>
+            </div>
+
+            <div className="task-document-body">
+              {activeTaskSection === "create" ? (
+                <form id="task-create-form" className="task-doc-form" onSubmit={handleCreateTask}>
+                  {taskNotice ? <StatusNotice tone={taskNotice.tone} message={taskNotice.message} /> : null}
+                  <Field label="Task ID" helper="Use a bytes32 hex value.">
+                    <div className="field-row">
+                      <input
+                        value={taskForm.taskId}
+                        onChange={(event) => setTaskForm((current) => ({ ...current, taskId: event.target.value }))}
+                        placeholder="0x..."
+                      />
+                      <button
+                        type="button"
+                        className="button button-secondary"
+                        onClick={() => setTaskForm((current) => ({ ...current, taskId: generateBytes32Hex() }))}
+                      >
+                        Generate
+                      </button>
+                    </div>
+                  </Field>
+                  <Field label="Metadata URI">
+                    <input
+                      value={taskForm.metadataUri}
+                      onChange={(event) => setTaskForm((current) => ({ ...current, metadataUri: event.target.value }))}
+                      placeholder="ipfs://task-metadata"
+                    />
+                  </Field>
+                  <Field label="Metadata Hash">
+                    <input
+                      value={taskForm.metadataHash}
+                      onChange={(event) => setTaskForm((current) => ({ ...current, metadataHash: event.target.value }))}
+                      placeholder="0x..."
+                    />
+                  </Field>
+                  <Field label="Stake Amount (wei)" helper="Optional. Use a whole-number wei string.">
+                    <input
+                      value={taskForm.stakeAmountWei}
+                      onChange={(event) =>
+                        setTaskForm((current) => ({ ...current, stakeAmountWei: event.target.value }))
+                      }
+                      placeholder="0"
+                    />
+                  </Field>
+                </form>
+              ) : activeTaskSection === "correction" ? (
+                <form id="task-correction-form" className="task-doc-form" onSubmit={handleSubmitCorrection}>
+                  {correctionNotice ? <StatusNotice tone={correctionNotice.tone} message={correctionNotice.message} /> : null}
+                  <Field label="Task ID">
+                    <input
+                      value={correctionForm.taskId}
+                      onChange={(event) => setCorrectionForm((current) => ({ ...current, taskId: event.target.value }))}
+                      placeholder="0x..."
+                    />
+                  </Field>
+                  <Field label="Correction Metadata URI">
+                    <input
+                      value={correctionForm.metadataUri}
+                      onChange={(event) =>
+                        setCorrectionForm((current) => ({ ...current, metadataUri: event.target.value }))
+                      }
+                      placeholder="ipfs://correction-metadata"
+                    />
+                  </Field>
+                  <Field label="Correction Metadata Hash">
+                    <input
+                      value={correctionForm.metadataHash}
+                      onChange={(event) =>
+                        setCorrectionForm((current) => ({ ...current, metadataHash: event.target.value }))
+                      }
+                      placeholder="0x..."
+                    />
+                  </Field>
+                  <Field label="Stake Amount (wei)" helper="Optional.">
+                    <input
+                      value={correctionForm.stakeAmountWei}
+                      onChange={(event) =>
+                        setCorrectionForm((current) => ({ ...current, stakeAmountWei: event.target.value }))
+                      }
+                      placeholder="0"
+                    />
+                  </Field>
+                </form>
+              ) : activeTaskSection === "session" ? (
+                <div className="task-doc-form">
+                  {walletNotice ? <StatusNotice tone={walletNotice.tone} message={walletNotice.message} /> : null}
+                  <div className="task-detail-grid">
+                    <Detail label="Injected provider" value={hasDetectedWallet ? "Detected" : "Not found"} />
+                    <Detail label="Connected account" value={walletAccount ?? "Not connected"} mono />
+                    <Detail
+                      label="Wallet chain"
+                      value={walletChainId === null ? "Unknown" : `${walletChainId} (${walletChainIdHex})`}
+                      mono
+                    />
+                    <Detail label="Configured network" value={`${walletConfig.chainName} (${walletConfig.chainId})`} />
+                  </div>
+                  {chainMismatch ? (
+                    <div className="inline-actions">
+                      <StatusNotice
+                        tone="error"
+                        message={`Wallet is on chain ${walletChainId}. Switch to ${walletConfig.chainName} to match the configured demo network.`}
+                      />
+                      <button type="button" className="button button-secondary" onClick={handleSwitchNetwork}>
+                        Switch Network
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div
+                  className="task-doc-readable"
+                  data-placeholder="Start writing task notes... press '/' for commands"
+                >
+                  {taskViewerNotice ? <StatusNotice tone={taskViewerNotice.tone} message={taskViewerNotice.message} /> : null}
+                  <div className="task-load-row">
+                    <input
+                      value={taskLookupId}
+                      onChange={(event) => setTaskLookupId(event.target.value)}
+                      placeholder="Enter task ID to load"
+                    />
+                    <button
+                      className="button button-primary"
+                      type="button"
+                      onClick={() => taskLookupId.trim().length > 0 && void loadTaskDetail(taskLookupId.trim())}
+                      disabled={isLoadingTask}
+                    >
+                      {isLoadingTask ? "Loading..." : "Load"}
+                    </button>
+                  </div>
+                  {isLoadingTask && selectedTask === null ? (
+                    <LoadingState message="Fetching the latest task record..." />
+                  ) : selectedTask ? (
+                    renderSelectedTask(selectedTask, selectedCorrections)
+                  ) : (
+                    <>
+                      <p>
+                        Here are the initial thoughts for the next task cycle. Load an on-chain task record or create a
+                        new one from the sidebar.
+                      </p>
+                      <ul className="task-checklist">
+                        <li>
+                          <span className="task-drag-handle">::</span>
+                          <span className="task-checkbox" />
+                          <span>Finalize shared metadata structure.</span>
+                        </li>
+                        <li>
+                          <span className="task-drag-handle">::</span>
+                          <span className="task-checkbox task-checkbox-checked">
+                            <Check size={12} />
+                          </span>
+                          <span>Review design system visual tokens.</span>
+                        </li>
+                      </ul>
+                      <p>Recent and pinned task IDs appear in the sidebar as soon as they are created or loaded.</p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </main>
+
+        <footer className="task-document-footer">
+          <div className="task-save-state">
+            <Cloud size={16} />
+            <span>Saved just now</span>
+          </div>
+          <div className="task-footer-actions">
+            <button
+              type="button"
+              onClick={() => {
+                if (activeTaskSection === "create") {
+                  setTaskForm(createEmptyTaskForm());
+                } else if (activeTaskSection === "correction") {
+                  setCorrectionForm(createEmptyCorrectionForm());
+                } else if (activeTaskSection === "details") {
+                  setTaskLookupId("");
+                }
+              }}
+            >
+              Discard
+            </button>
+            <button
+              type={taskWorkspaceFooterForm === undefined ? "button" : "submit"}
+              form={taskWorkspaceFooterForm}
+              onClick={
+                activeTaskSection === "details"
+                  ? () => taskLookupId.trim().length > 0 && void loadTaskDetail(taskLookupId.trim())
+                  : activeTaskSection === "session"
+                    ? hasWalletConnection
+                      ? disconnectWallet
+                      : connectFirstAvailableWallet
+                    : undefined
+              }
+              disabled={isCreatingTask || isSubmittingCorrection || isLoadingTask || isConnectingWallet}
+            >
+              {taskWorkspaceFooterAction}
+            </button>
+          </div>
+        </footer>
+      </div>
+    </section>
   );
 
   const taskSectionPanel =
@@ -1453,67 +1977,100 @@ export function DashboardPage() {
       </Panel>
     ) : (
       <div className="agent-grid">
-        <Panel title="Ask Excel Agent" eyebrow="Question">
-          {agentNotice ? <StatusNotice tone={agentNotice.tone} message={agentNotice.message} /> : null}
-          <form className="stack" onSubmit={handleAgentQuestionSubmit}>
-            <Field label="Question">
-              <textarea
-                value={agentQuestion}
-                onChange={(event) => setAgentQuestion(event.target.value)}
-                placeholder="Ask an Excel formula or debugging question"
-              />
-            </Field>
-            <div className="quick-question-grid">
-              {marketplaceArtifacts.slice(0, 4).map((artifact) => (
-                <button
-                  type="button"
-                  className="list-item"
-                  key={artifact.id}
-                  onClick={() => setAgentQuestion(artifact.questionPattern)}
-                >
-                  <span>{artifact.title}</span>
-                </button>
-              ))}
-            </div>
-            <div className="agent-option-bar" role="tablist" aria-label="Agent answer mode">
-              <button
-                type="button"
-                className={`agent-option ${agentAnswerMode === "raw" ? "agent-option-active" : ""}`}
-                onClick={() => setAgentAnswerMode("raw")}
-              >
-                Raw LLM
-              </button>
-              <button
-                type="button"
-                className={`agent-option ${agentAnswerMode === "artifact" ? "agent-option-active" : ""}`}
-                onClick={() => setAgentAnswerMode("artifact")}
-              >
-                With Artifacts
-              </button>
-            </div>
-            <button className="button button-primary" type="submit" disabled={isRunningAgent}>
-              {isRunningAgent ? "Running..." : "Run Comparison"}
-            </button>
-          </form>
-        </Panel>
+        <section className="panel agent-chat-panel">
+          <div className="agent-chat-heading">
+            <h2>Ask Excel Agent</h2>
+            <p>Type a command or ask a question</p>
+          </div>
 
-        <Panel
-          title={activeAgentAnswer.label}
-          eyebrow="Selected Output"
-          action={
-            activeAgentAnswer.artifactIds.length > 0 ? (
-              <button type="button" className="button button-secondary" onClick={() => setActiveAgentSection("library")}>
-                View Library
-              </button>
-            ) : (
-              <button type="button" className="button button-secondary" onClick={() => setActiveAgentSection("marketplace")}>
-                Add Artifact
-              </button>
-            )
-          }
-        >
-          <AgentAnswerCard answer={activeAgentAnswer} featured />
-        </Panel>
+          <form className="zap-chatbox" onSubmit={handleAgentQuestionSubmit}>
+            <textarea
+              className="zap-chatbox-textarea"
+              value={agentQuestion}
+              onChange={(event) => setAgentQuestion(event.target.value)}
+              placeholder="Ask zap a question..."
+            />
+
+            <div className="zap-chatbox-toolbar">
+              <div className="zap-chatbox-left-actions">
+                <button className="zap-icon-button" type="button" aria-label="Attach file" title="Attach file">
+                  <span aria-hidden="true">+</span>
+                </button>
+
+                <div className="zap-command-menu">
+                  <button className="zap-icon-button" type="button" aria-label="Quick commands" title="Commands">
+                    <span aria-hidden="true">+</span>
+                  </button>
+                  <div className="zap-command-list">
+                    {marketplaceArtifacts.slice(0, 4).map((artifact) => (
+                      <button
+                        type="button"
+                        key={artifact.id}
+                        onClick={() => setAgentQuestion(artifact.questionPattern)}
+                      >
+                        {artifact.title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="zap-chatbox-right-actions">
+                <div className="zap-mode-selector" role="tablist" aria-label="Agent answer mode">
+                  <button
+                    type="button"
+                    className={agentAnswerMode === "raw" ? "zap-mode-active" : ""}
+                    onClick={() => setAgentAnswerMode("raw")}
+                  >
+                    Raw LLM
+                  </button>
+                  <button
+                    type="button"
+                    className={agentAnswerMode === "artifact" ? "zap-mode-active" : ""}
+                    onClick={() => setAgentAnswerMode("artifact")}
+                  >
+                    With Artifacts
+                  </button>
+                </div>
+
+                <button className="zap-run-button" type="submit" disabled={isRunningAgent}>
+                  {isRunningAgent ? "Running..." : "Run Comparison"}
+                </button>
+                <button className="zap-send-button" type="submit" disabled={isRunningAgent}>
+                  <span aria-hidden="true">-&gt;</span>
+                  <span>Send</span>
+                </button>
+              </div>
+            </div>
+          </form>
+
+          {agentNotice ? (
+            <div className={`zap-status-pill zap-status-${agentNotice.tone}`} role="status">
+              <span aria-hidden="true" />
+              <p>{agentNotice.message}</p>
+            </div>
+          ) : null}
+        </section>
+
+        <div className="agent-selected-output">
+          <Panel
+            title={activeAgentAnswer.label}
+            eyebrow="Selected Output"
+            action={
+              activeAgentAnswer.artifactIds.length > 0 ? (
+                <button type="button" className="button button-secondary" onClick={() => setActiveAgentSection("library")}>
+                  View Library
+                </button>
+              ) : (
+                <button type="button" className="button button-secondary" onClick={() => setActiveAgentSection("marketplace")}>
+                  Add Artifact
+                </button>
+              )
+            }
+          >
+            <AgentAnswerCard answer={activeAgentAnswer} featured />
+          </Panel>
+        </div>
 
         <div className="answer-comparison-grid">
           <AgentAnswerCard answer={agentComparison.raw} />
@@ -1526,22 +2083,49 @@ export function DashboardPage() {
     <>
       <header className="topbar">
         <div className="topbar-inner">
-          <div className="brand-lockup">
-            <div className="brand-mark" aria-hidden="true" />
-            <div>
-              <p className="eyebrow">DataLoop</p>
-              <strong>Base Platform</strong>
+          <div className="topbar-brand-area">
+            <button className="back-button back-icon-button" type="button" onClick={onBackToIntro} aria-label="Back to introductory pages">
+              <span aria-hidden="true">&lt;</span>
+            </button>
+
+            <WorkspaceToggle activeWorkspace={activeWorkspace} onChange={setActiveWorkspace} />
+
+            <div className="brand-lockup">
+              <strong className="app-wordmark">DataLoop</strong>
             </div>
           </div>
 
-          <WorkspaceToggle activeWorkspace={activeWorkspace} onChange={setActiveWorkspace} />
+          <div aria-hidden="true" />
 
           <div className="topbar-meta">
-            <div className={`network-pill ${chainMismatch ? "network-pill-alert" : hasWalletConnection ? "network-pill-live" : ""}`}>
-              <span className="network-dot" aria-hidden="true" />
-              <div>
-                <span className="micro-label">Network</span>
-                <strong>{chainMismatch ? "Mismatch" : walletConfig.chainName}</strong>
+            <div className="network-select">
+              <button
+                className={`network-pill network-select-trigger ${chainMismatch ? "network-pill-alert" : hasWalletConnection ? "network-pill-live" : ""}`}
+                type="button"
+                aria-haspopup="menu"
+              >
+                <div>
+                  <span className="micro-label">Network</span>
+                  <strong>{chainMismatch ? "Mismatch" : "0G - Testnet"}</strong>
+                </div>
+              </button>
+
+              <div className="network-menu" role="menu">
+                <button className="network-menu-item network-menu-item-active" type="button" role="menuitem" onClick={handleSelectTestnet}>
+                  <span className="network-option-index">1</span>
+                  <span>
+                    <strong>0G - Testnet</strong>
+                    <small>Selected</small>
+                  </span>
+                </button>
+                <button className="network-menu-item" type="button" role="menuitem" onClick={handleSelectMainnet}>
+                  <span className="network-option-index">2</span>
+                  <span>
+                    <strong>0G - Mainnet</strong>
+                    <small>Coming Soon</small>
+                  </span>
+                </button>
+                {networkPrompt ? <p className="network-menu-prompt">{networkPrompt}</p> : null}
               </div>
             </div>
 
@@ -1550,14 +2134,46 @@ export function DashboardPage() {
               <strong className="mono-text">{connectedStateLabel}</strong>
             </div>
 
-            <button
-              type="button"
-              className={`button button-primary topbar-button ${hasWalletConnection && !chainMismatch ? "button-connected" : ""}`}
-              onClick={connectWallet}
-              disabled={isConnectingWallet}
-            >
-              {isConnectingWallet ? "Connecting..." : hasWalletConnection ? "Reconnect" : "Connect Wallet"}
-            </button>
+            <div className="wallet-connect">
+              {hasWalletConnection ? (
+                <button
+                  type="button"
+                  className={`button button-primary topbar-button ${!chainMismatch ? "button-connected" : ""}`}
+                  onClick={disconnectWallet}
+                >
+                  Disconnect
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="button button-primary topbar-button wallet-connect-trigger"
+                    disabled={isConnectingWallet}
+                    aria-haspopup="menu"
+                  >
+                    {isConnectingWallet ? "Connecting..." : "Connect"}
+                  </button>
+                  <div className="wallet-menu" role="menu">
+                    {walletOptions.map((option) => (
+                      <button
+                        className="wallet-menu-item"
+                        disabled={isConnectingWallet}
+                        key={option.id}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => void connectWallet(option.id)}
+                      >
+                        <span className="wallet-option-mark">{option.label.slice(0, 1)}</span>
+                        <span>
+                          <strong>{option.label}</strong>
+                          <small>{option.provider === null ? "Not detected" : "Detected"}</small>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -1627,6 +2243,7 @@ export function DashboardPage() {
           </section>
         ) : null}
 
+        {activeWorkspace === "tasks" ? taskWorkspaceBlock : (
         <section className="workspace-shell">
           <div className="workspace-heading">
             <div>
@@ -1678,6 +2295,7 @@ export function DashboardPage() {
             )}
           </div>
         </section>
+        )}
       </main>
     </>
   );
@@ -1724,29 +2342,191 @@ function WorkspaceToggle({
   activeWorkspace: WorkspaceKey;
   onChange: (workspace: WorkspaceKey) => void;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dragX = useMotionValue(-340);
+  const dragOpacity = useTransform(dragX, [-200, 0], [0, 1]);
+  const items: Array<{ key: WorkspaceKey; label: string; icon: typeof Home }> = [
+    { key: "tasks", label: "Tasks", icon: Home },
+    { key: "datasets", label: "Datasets", icon: Briefcase },
+    { key: "agent", label: "Agent", icon: User }
+  ];
+
+  function handleDragEnd(_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) {
+    if (info.offset.x < -100) {
+      setIsOpen(false);
+      return;
+    }
+
+    void animate(dragX, 0, menuVariants.open.transition);
+  }
+
+  function handleSelectWorkspace(workspace: WorkspaceKey) {
+    onChange(workspace);
+    setIsOpen(false);
+  }
+
+  const menuVariants = {
+    closed: {
+      x: "-100%",
+      transition: {
+        type: "spring",
+        stiffness: 200,
+        damping: 30,
+        mass: 0.8
+      }
+    },
+    open: {
+      x: 0,
+      transition: {
+        type: "spring",
+        stiffness: 200,
+        damping: 30,
+        mass: 0.8
+      }
+    }
+  };
+
+  const itemVariants = {
+    closed: { x: -50, opacity: 0 },
+    open: (index: number) => ({
+      x: 0,
+      opacity: 1,
+      transition: {
+        delay: 0.1 + index * 0.08,
+        type: "spring",
+        stiffness: 250,
+        damping: 25
+      }
+    })
+  };
+
+  const overlayVariants = {
+    closed: {
+      opacity: 0,
+      transition: {
+        duration: 0.3
+      }
+    },
+    open: {
+      opacity: 1,
+      transition: {
+        duration: 0.4
+      }
+    }
+  };
+
+  useEffect(() => {
+    const controls = animate(dragX, isOpen ? 0 : -340, isOpen ? menuVariants.open.transition : menuVariants.closed.transition);
+
+    return () => controls.stop();
+  }, [dragX, isOpen]);
+
   return (
-    <div className="segmented-control" role="tablist" aria-label="Workspace switcher">
-      <button
+    <div className="workspace-menu" role="tablist" aria-label="Workspace switcher">
+      <motion.button
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setIsOpen((current) => !current)}
+        className="workspace-menu-button"
         type="button"
-        className={`segment ${activeWorkspace === "tasks" ? "segment-active" : ""}`}
-        onClick={() => onChange("tasks")}
+        aria-label={isOpen ? "Close workspace menu" : "Open workspace menu"}
+        aria-expanded={isOpen}
       >
-        Tasks
-      </button>
-      <button
-        type="button"
-        className={`segment ${activeWorkspace === "datasets" ? "segment-active" : ""}`}
-        onClick={() => onChange("datasets")}
+        {isOpen ? <X size={20} /> : <Menu size={20} />}
+      </motion.button>
+
+      <AnimatePresence>
+        {isOpen ? (
+          <motion.div
+            variants={overlayVariants}
+            initial="closed"
+            animate="open"
+            exit="closed"
+            onClick={() => setIsOpen(false)}
+            className="workspace-menu-overlay"
+          />
+        ) : null}
+      </AnimatePresence>
+
+      <motion.nav
+        drag="x"
+        dragConstraints={{ left: -320, right: 0 }}
+        dragElastic={0.2}
+        onDragEnd={handleDragEnd}
+        style={{ x: dragX }}
+        className="workspace-side-menu"
+        aria-label="Workspace menu"
       >
-        Datasets
-      </button>
-      <button
-        type="button"
-        className={`segment ${activeWorkspace === "agent" ? "segment-active" : ""}`}
-        onClick={() => onChange("agent")}
-      >
-        Agent
-      </button>
+        <motion.button
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: isOpen ? 1 : 0, scale: isOpen ? 1 : 0.8 }}
+          transition={{ delay: 0.2 }}
+          whileHover={{ scale: 1.1, rotate: 90 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setIsOpen(false)}
+          className="workspace-menu-close"
+          type="button"
+          aria-label="Close workspace menu"
+        >
+          <X size={22} />
+        </motion.button>
+
+        <motion.div style={{ opacity: dragOpacity }} className="workspace-menu-drag-hint" aria-hidden="true">
+          <ChevronLeft size={30} />
+        </motion.div>
+
+        <div className="workspace-menu-content">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: isOpen ? 1 : 0, y: isOpen ? 0 : -20 }}
+            transition={{ delay: 0.15, type: "spring", stiffness: 200 }}
+            className="workspace-menu-heading"
+          >
+            <h2>Navigation</h2>
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: isOpen ? 80 : 0 }}
+              transition={{ delay: 0.3, duration: 0.6, ease: "easeOut" }}
+            />
+          </motion.div>
+
+          <ul className="workspace-menu-list">
+            {items.map((item, index) => {
+              const Icon = item.icon;
+
+              return (
+                <motion.li
+                  key={item.key}
+                  custom={index}
+                  variants={itemVariants}
+                  initial="closed"
+                  animate={isOpen ? "open" : "closed"}
+                >
+                  <button
+                    className={`workspace-side-item ${activeWorkspace === item.key ? "workspace-side-item-active" : ""}`}
+                    type="button"
+                    onClick={() => handleSelectWorkspace(item.key)}
+                  >
+                    <motion.span className="workspace-side-icon" whileHover={{ scale: 1.15, rotate: 8 }} whileTap={{ scale: 0.95 }}>
+                      <Icon size={22} />
+                    </motion.span>
+                    <span>{item.label}</span>
+                  </button>
+                </motion.li>
+              );
+            })}
+          </ul>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: isOpen ? 1 : 0, y: isOpen ? 0 : 20 }}
+            transition={{ delay: 0.7, duration: 0.5 }}
+            className="workspace-menu-footer"
+          >
+            <p>Drag left to close</p>
+          </motion.div>
+        </div>
+      </motion.nav>
     </div>
   );
 }

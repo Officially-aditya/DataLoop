@@ -8,7 +8,7 @@ interface LandingButtonProps {
 }
 
 export function LandingButton({ children, href, onClick, variant = "secondary" }: LandingButtonProps) {
-  const className = `landing-button landing-button-${variant}`;
+  const className = `landing-button landing-button-${variant}${variant === "primary" ? " landing-hover-button" : ""}`;
 
   if (href) {
     return (

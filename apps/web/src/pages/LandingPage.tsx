@@ -12,12 +12,42 @@ interface LandingPageProps {
 }
 
 const navigationItems = [
-  { label: "Problem", href: "#problem" },
-  { label: "Solution", href: "#solution" },
-  { label: "Architecture", href: "#architecture" },
-  { label: "Demo", href: "#demo" },
-  { label: "Market", href: "#market" },
-  { label: "Roadmap", href: "#roadmap" }
+  {
+    label: "Problem",
+    href: "#problem",
+    summary: "Why production agent mistakes need a market for expert correction.",
+    meta: "Context"
+  },
+  {
+    label: "Solution",
+    href: "#solution",
+    summary: "The DataLoop protocol loop across tasks, consensus, storage, and buyers.",
+    meta: "Protocol"
+  },
+  {
+    label: "Architecture",
+    href: "#architecture",
+    summary: "Base contracts, storage references, API services, and agent artifact flow.",
+    meta: "Stack"
+  },
+  {
+    label: "Demo",
+    href: "#demo",
+    summary: "ExcelMind shows how corrections become reusable agent improvement material.",
+    meta: "Product"
+  },
+  {
+    label: "Market",
+    href: "#market",
+    summary: "The buyer and contributor case for a decentralized dataset economy.",
+    meta: "Demand"
+  },
+  {
+    label: "Roadmap",
+    href: "#roadmap",
+    summary: "From the current workspace to consensus scoring and buyer SDKs.",
+    meta: "Next"
+  }
 ];
 
 export function LandingPage({ onLaunchApp }: LandingPageProps) {
@@ -26,18 +56,26 @@ export function LandingPage({ onLaunchApp }: LandingPageProps) {
       <div className="landing-noise" aria-hidden="true" />
       <header className="landing-nav">
         <a className="landing-brand" href="#home" aria-label="DataLoop home">
-          <span className="landing-brand-mark" aria-hidden="true" />
-          <span>DataLoop</span>
+          <span className="landing-wordmark">DataLoop</span>
         </a>
-        <nav aria-label="Landing sections">
-          {navigationItems.map((item) => (
-            <a key={item.href} href={item.href}>
-              {item.label}
-            </a>
-          ))}
+        <nav className="landing-navigation-menu" aria-label="Landing sections">
+          <ul>
+            {navigationItems.map((item) => (
+              <li key={item.href}>
+                <a className="landing-navigation-trigger" href={item.href}>
+                  <span>{item.label}</span>
+                </a>
+                <div className="landing-navigation-panel" aria-hidden="true">
+                  <span>{item.meta}</span>
+                  <strong>{item.label}</strong>
+                  <p>{item.summary}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
         </nav>
-        <button className="landing-nav-cta" type="button" onClick={onLaunchApp}>
-          Launch App
+        <button className="landing-nav-cta landing-hover-button" type="button" onClick={onLaunchApp}>
+          <span>Launch App</span>
         </button>
       </header>
       <main>
