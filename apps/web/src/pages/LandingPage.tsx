@@ -21,7 +21,7 @@ const navigationItems = [
   {
     label: "Solution",
     href: "#solution",
-    summary: "The DataLoop protocol loop across tasks, consensus, storage, and buyers.",
+    summary: "The DataLoop protocol loop across artifacts, consensus, storage, and buyers.",
     meta: "Protocol"
   },
   {
@@ -39,7 +39,7 @@ const navigationItems = [
   {
     label: "Market",
     href: "#market",
-    summary: "The buyer and contributor case for a decentralized dataset economy.",
+    summary: "The buyer and contributor case for a decentralized artifact economy.",
     meta: "Demand"
   },
   {

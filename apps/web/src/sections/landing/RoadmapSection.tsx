@@ -7,10 +7,10 @@ interface RoadmapSectionProps {
 }
 
 const roadmap = [
-  ["Week 1", "On-chain task and correction records with local workspace flows."],
-  ["MVP", "Dataset versioning, storage proof surfaces, and agent artifact marketplace."],
+  ["Week 1", "Agent comparison, artifact library, marketplace, and upload flows."],
+  ["MVP", "Artifact versioning, storage proof surfaces, and agent marketplace distribution."],
   ["Next", "Consensus scoring, automated training triggers, and buyer SDK packaging."],
-  ["Scale", "Multi-domain agent datasets with reputation-weighted expert networks."]
+  ["Scale", "Multi-domain agent artifacts with reputation-weighted expert networks."]
 ];
 
 export function RoadmapSection({ onLaunchApp }: RoadmapSectionProps) {

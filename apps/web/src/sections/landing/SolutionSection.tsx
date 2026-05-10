@@ -9,19 +9,19 @@ interface SolutionSectionProps {
 const participants = [
   {
     title: "Agent Developers",
-    copy: "Post labeling tasks with token bounties and define what correct output looks like for specific domain failures."
+    copy: "Publish artifact requests with token rewards and define what correct output looks like for specific domain failures."
   },
   {
     title: "Domain Experts",
     copy: "Stake to participate, submit corrected input-output pairs, and earn when labels reach consensus."
   },
   {
-    title: "Dataset Buyers",
-    copy: "Buy versioned dataset snapshots with provenance, quality scores, and reusable artifact context."
+    title: "Artifact Buyers",
+    copy: "Buy versioned artifact packs with provenance, quality scores, and reusable agent context."
   }
 ];
 
-const flywheelSteps = ["Mistake", "Post Task", "Consensus", "Storage", "Fine-tune"];
+const flywheelSteps = ["Mistake", "Artifact", "Consensus", "Storage", "Fine-tune"];
 
 export function SolutionSection({ onLaunchApp }: SolutionSectionProps) {
   return (
@@ -31,7 +31,7 @@ export function SolutionSection({ onLaunchApp }: SolutionSectionProps) {
           <SectionHeading
             kicker="The DataLoop Protocol"
             title="A market loop for production agent improvement"
-            copy="The platform connects task creators, expert labelers, storage proofs, and reusable agent artifacts in a single workspace."
+            copy="The platform connects artifact creators, expert labelers, storage proofs, and reusable agent artifacts in a single workspace."
           />
         </Reveal>
 

@@ -13,11 +13,11 @@ export function HeroSection({ onLaunchApp }: HeroSectionProps) {
     <section className="landing-hero landing-neural-grid" id="home">
       <div className="landing-container landing-hero-grid">
         <Reveal className="landing-hero-copy">
-          <p className="landing-kicker">Dataset Economy for AI Agents</p>
-          <SplitText text="Build the dataset economy, one label at a time." />
+          <p className="landing-kicker">Artifact Economy for AI Agents</p>
+          <SplitText text="Install agent knowledge, one artifact at a time." />
           <p>
-            DataLoop turns expert corrections into versioned, on-chain datasets that AI developers can use to keep
-            specialized agents improving after they ship.
+            DataLoop turns expert corrections into versioned, on-chain artifacts that AI developers can add to agent
+            libraries after they ship.
           </p>
           <div className="landing-action-row">
             <LandingButton variant="primary" onClick={onLaunchApp}>
@@ -29,9 +29,9 @@ export function HeroSection({ onLaunchApp }: HeroSectionProps) {
             </LandingButton>
           </div>
           <div className="landing-hero-metrics" aria-label="DataLoop platform signals">
-            <span>Task bounties</span>
+            <span>Artifact marketplace</span>
             <span>Expert consensus</span>
-            <span>Immutable datasets</span>
+            <span>0G storage proofs</span>
           </div>
         </Reveal>
 
@@ -46,7 +46,7 @@ export function HeroSection({ onLaunchApp }: HeroSectionProps) {
               </span>
             ))}
             <div className="landing-visual-console">
-              <span>label.task.created</span>
+              <span>artifact.excel.installed</span>
               <span>consensus.weight: 0.87</span>
               <span>storage.root: 0x4a3f...91c2</span>
             </div>

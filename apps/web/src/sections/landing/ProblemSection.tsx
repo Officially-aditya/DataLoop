@@ -4,7 +4,7 @@ import { SectionHeading } from "../../components/landing/SectionHeading";
 const rows = [
   ["Data creation", "Ad-hoc, one-time, expensive", "Continuous, rewarded, on-chain"],
   ["Labeler identity", "Anonymous crowdworkers", "Staked, reputation-scored experts"],
-  ["Dataset ownership", "Locked in private buckets", "Tokenized, shared, tradeable"],
+  ["Artifact ownership", "Locked in private buckets", "Tokenized, shared, tradeable"],
   ["Fine-tuning trigger", "Manual and infrequent", "Automated when quality thresholds clear"]
 ];
 
@@ -30,8 +30,8 @@ export function ProblemSection() {
               examples of the exact edge cases it fails on in production.
             </p>
             <p>
-              DataLoop converts those failures into expert tasks, consensus-weighted labels, and immutable dataset
-              versions ready for model updates.
+              DataLoop converts those failures into expert-authored artifacts, consensus-weighted labels, and immutable
+              artifact versions ready for model updates.
             </p>
           </Reveal>
 

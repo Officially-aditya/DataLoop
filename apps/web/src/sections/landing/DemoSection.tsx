@@ -31,7 +31,7 @@ export function DemoSection({ onLaunchApp }: DemoSectionProps) {
                 I cannot determine the total recurring revenue. The workbook contains multiple sheets and ambiguous
                 labels.
               </div>
-              <p>Failure logged. Pushing to DataLoop task queue...</p>
+              <p>Failure matched. Searching DataLoop artifacts...</p>
             </div>
           </Reveal>
 
@@ -41,7 +41,7 @@ export function DemoSection({ onLaunchApp }: DemoSectionProps) {
               <strong>Fine-tuned</strong>
             </div>
             <div className="landing-terminal-body">
-              <p>&gt; Fetched DatasetNFT 0x8f...2a1</p>
+              <p>&gt; Fetched ArtifactNFT 0x8f...2a1</p>
               <p>&gt; Applied curated artifact context</p>
               <div className="landing-terminal-output landing-terminal-success">
                 Based on Sheet2 and filtering by Recurring status, total enterprise revenue is $4.2M.
@@ -55,7 +55,7 @@ export function DemoSection({ onLaunchApp }: DemoSectionProps) {
           <LandingButton variant="primary" onClick={onLaunchApp}>
             Open Platform
           </LandingButton>
-          <p>Launches the existing task, dataset, and agent workspace without losing current functionality.</p>
+          <p>Launches the agent and artifact workspace with the current functionality intact.</p>
         </Reveal>
       </div>
     </section>

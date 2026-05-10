@@ -3,77 +3,37 @@ import {
   useMemo,
   useState,
   type ChangeEvent,
-  type Dispatch,
-  type FormEvent,
-  type ReactNode,
-  type SetStateAction
+  type FormEvent
 } from "react";
 import { AnimatePresence, animate, motion, useMotionValue, useTransform, type PanInfo } from "framer-motion";
-import {
-  Archive,
-  Briefcase,
-  Calendar,
-  Check,
-  CheckCircle,
-  ChevronLeft,
-  CircleDashed,
-  Cloud,
-  FileText,
-  Flag,
-  HelpCircle,
-  Home,
-  Inbox,
-  Menu,
-  MoreHorizontal,
-  Pin,
-  Plus,
-  Search,
-  Settings,
-  Star,
-  Tag,
-  User,
-  X
-} from "lucide-react";
+import { Archive, ChevronLeft, FileText, Menu, User, X } from "lucide-react";
 
 import { Panel } from "../components/Panel";
 import { StatusNotice } from "../components/StatusNotice";
 import {
-    ApiClientError,
-    addAgentArtifactToLibrary,
-    compareAgentQuestion,
-    createTask,
-    getAgentLibrary,
-    getAgentMarketplaceArtifacts,
-    getApiBaseUrl,
-    getDatasetHistory,
-    getLatestDatasetVersion,
-    getTask,
-    getTaskCorrections,
-    removeAgentArtifactFromLibrary,
-    registerDatasetVersion,
-    submitCorrection,
-    uploadAgentArtifact,
-    type AgentAnswerResource,
-    type AgentArtifactResource,
-    type AgentArtifactStorageProof,
-    type AgentComparisonResult,
-    type AgentProviderStatus,
-    type CorrectionResource,
-    type DatasetHistoryResult,
-    type DatasetVersionResource,
-    type LatestDatasetVersionResult,
-    type TaskResource
+  ApiClientError,
+  addAgentArtifactToLibrary,
+  compareAgentQuestion,
+  getAgentLibrary,
+  getAgentMarketplaceArtifacts,
+  removeAgentArtifactFromLibrary,
+  uploadAgentArtifact,
+  type AgentAnswerResource,
+  type AgentArtifactResource,
+  type AgentArtifactStorageProof,
+  type AgentComparisonResult,
+  type AgentProviderStatus
 } from "../lib/api";
-import { generateBytes32Hex, hasMetadataReference, isAddress, isBytes32, isUintString } from "../lib/validation";
+import { isAddress } from "../lib/validation";
 import { getWalletConfig } from "../lib/wallet/config";
 import {
-    getWalletProviderOptions,
-    getWalletChainId,
-    parseHexChainId,
-    requestWalletAccounts,
-    switchOrAddWalletChain,
-    type WalletProviderKind,
-    type WalletProviderOption
+  getWalletChainId,
+  getWalletProviderOptions,
+  parseHexChainId,
+  requestWalletAccounts,
+  switchOrAddWalletChain,
+  type WalletProviderKind,
+  type WalletProviderOption
 } from "../lib/wallet/provider";
 
 interface NoticeState {
@@ -81,40 +41,9 @@ interface NoticeState {
   message: string;
 }
 
-interface TaskFormState {
-  taskId: string;
-  metadataUri: string;
-  metadataHash: string;
-  stakeAmountWei: string;
-}
-
-interface CorrectionFormState {
-  taskId: string;
-  metadataUri: string;
-  metadataHash: string;
-  stakeAmountWei: string;
-}
-
-interface DatasetEntryDraft {
-  id: string;
-  sourceType: "TASK" | "CORRECTION";
-  referenceId: string;
-  metadataUri: string;
-  metadataHash: string;
-}
-
-interface DatasetFormState {
-  datasetId: string;
-  metadataUri: string;
-  metadataHash: string;
-  immutableRef: string;
-  entries: DatasetEntryDraft[];
-}
-
-type WorkspaceKey = "tasks" | "datasets" | "agent";
-type TaskSectionKey = "details" | "create" | "correction" | "session";
-type DatasetSectionKey = "latest" | "register" | "history" | "session";
-type AgentSectionKey = "ask" | "marketplace" | "library" | "upload";
+type WorkspaceKey = "agent" | "artifacts";
+type ArtifactSectionKey = "marketplace" | "library" | "upload";
+type AgentAnswerMode = "raw" | "artifact";
 
 interface DemoArtifact {
   id: string;
@@ -165,21 +94,17 @@ interface UploadArtifactFormState {
   answer: string;
 }
 
-type AgentAnswerMode = "raw" | "artifact";
-
 interface DashboardPageProps {
   onBackToIntro: () => void;
 }
 
-const RECENT_TASKS_KEY = "dataloop.week1.recentTasks";
-const RECENT_DATASETS_KEY = "dataloop.week1.recentDatasets";
 const AGENT_LIBRARY_KEY = "dataloop.agent.artifactLibrary";
 const AGENT_UPLOADS_KEY = "dataloop.agent.uploadedArtifacts";
-const DEFAULT_AGENT_ARTIFACT_ID = "sumifs-multi-condition";
+const DEFAULT_AGENT_ARTIFACT_ID = "excel";
 const DEFAULT_AGENT_QUESTION =
   "In a sales table with dates in A, regions in B, amounts in C, what formula sums sales in 'North' region after 2024-01-01?";
 
-const MARKETPLACE_ARTIFACTS: DemoArtifact[] = [
+const EXCEL_ARTIFACT_CASES = [
   {
     id: "sumifs-multi-condition",
     title: "SUMIFS with multiple criteria",
@@ -192,7 +117,8 @@ const MARKETPLACE_ARTIFACTS: DemoArtifact[] = [
     answer: "Use SUMIFS with date criteria for multi-condition aggregation.",
     rawFormula: '=SUMIFS(C:C,B:B,"North",A:A,">2024-01-01")',
     rawAnswer: "Sums North region sales after Jan 1, 2024 using date criteria.",
-    source: "marketplace"
+    usageCount: 421,
+    benchmarkScore: 0.95
   },
   {
     id: "xlookup-basics",
@@ -206,7 +132,8 @@ const MARKETPLACE_ARTIFACTS: DemoArtifact[] = [
     answer: "Use XLOOKUP to find the salary for the exact match.",
     rawFormula: '=XLOOKUP("John Doe",A1:A10,B1:B10)',
     rawAnswer: "XLOOKUP finds the salary for John Doe.",
-    source: "marketplace"
+    usageCount: 318,
+    benchmarkScore: 0.92
   },
   {
     id: "filter-dynamic-array",
@@ -219,7 +146,8 @@ const MARKETPLACE_ARTIFACTS: DemoArtifact[] = [
     answer: "Use dynamic array FILTER; the result will spill into adjacent cells.",
     rawFormula: "=FILTER(B:C,C:C>1000)",
     rawAnswer: "Filters rows where amounts are over 1000.",
-    source: "marketplace"
+    usageCount: 256,
+    benchmarkScore: 0.9
   },
   {
     id: "absolute-ref-mistake",
@@ -231,7 +159,8 @@ const MARKETPLACE_ARTIFACTS: DemoArtifact[] = [
     concepts: ["absolute references", "$ syntax"],
     answer: "Use absolute references with $ syntax to control whether rows, columns, or both stay fixed.",
     rawAnswer: "Use $ to lock row or column when copying.",
-    source: "marketplace"
+    usageCount: 177,
+    benchmarkScore: 0.88
   },
   {
     id: "vlookup-limitations",
@@ -244,7 +173,8 @@ const MARKETPLACE_ARTIFACTS: DemoArtifact[] = [
     answer:
       "VLOOKUP limitations include one-way lookup direction and fragile column indexes; XLOOKUP advantages include exact-match defaults, left/right lookup, and cleaner return arrays.",
     rawAnswer: "VLOOKUP is older and XLOOKUP is usually easier.",
-    source: "marketplace"
+    usageCount: 203,
+    benchmarkScore: 0.89
   },
   {
     id: "text-numbers-sum",
@@ -257,7 +187,29 @@ const MARKETPLACE_ARTIFACTS: DemoArtifact[] = [
     answer: "Use VALUE for text to number conversion before summing.",
     rawFormula: "=SUM(A:A)",
     rawAnswer: "Try SUM on the column after checking formatting.",
-    source: "marketplace"
+    usageCount: 141,
+    benchmarkScore: 0.86
+  }
+];
+
+const MARKETPLACE_ARTIFACTS: DemoArtifact[] = [
+  {
+    id: "excel",
+    title: "Excel artifact pack",
+    difficulty: "medium",
+    tags: ["excel", "formula library", ...uniqueStrings(EXCEL_ARTIFACT_CASES.flatMap((artifactCase) => artifactCase.tags))],
+    questionPattern: EXCEL_ARTIFACT_CASES.map((artifactCase) => artifactCase.questionPattern).join("\n"),
+    formulaPattern: "See excel.md",
+    concepts: uniqueStrings(EXCEL_ARTIFACT_CASES.flatMap((artifactCase) => artifactCase.concepts)),
+    answer: buildExcelArtifactFileBody(),
+    rawAnswer: "The raw model answers from general Excel knowledge without the bundled excel.md artifact pack.",
+    source: "marketplace",
+    creator: "DataLoop",
+    version: "1.0.0",
+    usageCount: EXCEL_ARTIFACT_CASES.reduce((total, artifactCase) => total + artifactCase.usageCount, 0),
+    benchmarkScore:
+      EXCEL_ARTIFACT_CASES.reduce((total, artifactCase) => total + artifactCase.benchmarkScore, 0) /
+      EXCEL_ARTIFACT_CASES.length
   }
 ];
 
@@ -270,74 +222,32 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
   const [walletNotice, setWalletNotice] = useState<NoticeState | null>(null);
   const [networkPrompt, setNetworkPrompt] = useState<string | null>(null);
   const [isConnectingWallet, setIsConnectingWallet] = useState(false);
-  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceKey>("tasks");
-  const [activeTaskSection, setActiveTaskSection] = useState<TaskSectionKey>("details");
-  const [activeDatasetSection, setActiveDatasetSection] = useState<DatasetSectionKey>("latest");
-  const [activeAgentSection, setActiveAgentSection] = useState<AgentSectionKey>("ask");
+
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceKey>("agent");
+  const [activeArtifactSection, setActiveArtifactSection] = useState<ArtifactSectionKey>("marketplace");
   const [agentAnswerMode, setAgentAnswerMode] = useState<AgentAnswerMode>("artifact");
   const [agentQuestion, setAgentQuestion] = useState(DEFAULT_AGENT_QUESTION);
   const [agentNotice, setAgentNotice] = useState<NoticeState | null>(null);
   const [marketplaceArtifacts, setMarketplaceArtifacts] = useState<DemoArtifact[]>(MARKETPLACE_ARTIFACTS);
   const [selectedMarketplaceArtifactId, setSelectedMarketplaceArtifactId] = useState(DEFAULT_AGENT_ARTIFACT_ID);
-  const [agentLibraryIds, setAgentLibraryIds] = useState<string[]>(() => {
-    const storedIds = readStoredIds(AGENT_LIBRARY_KEY);
-    return storedIds.length > 0 ? storedIds : [DEFAULT_AGENT_ARTIFACT_ID];
-  });
+  const [libraryIds, setLibraryIds] = useState<string[]>(() => normalizeLibraryIds(readStoredIds(AGENT_LIBRARY_KEY)));
   const [uploadedArtifacts, setUploadedArtifacts] = useState<DemoArtifact[]>(readStoredArtifacts);
   const [backendAgentComparison, setBackendAgentComparison] = useState<BackendAgentComparisonState | null>(null);
   const [uploadArtifactForm, setUploadArtifactForm] = useState<UploadArtifactFormState>(() =>
     createEmptyUploadArtifactForm()
   );
-
-  const [taskForm, setTaskForm] = useState<TaskFormState>(() => createEmptyTaskForm());
-  const [correctionForm, setCorrectionForm] = useState<CorrectionFormState>(createEmptyCorrectionForm);
-  const [datasetForm, setDatasetForm] = useState<DatasetFormState>(() => createEmptyDatasetForm());
-
-  const [taskNotice, setTaskNotice] = useState<NoticeState | null>(null);
-  const [correctionNotice, setCorrectionNotice] = useState<NoticeState | null>(null);
-  const [datasetNotice, setDatasetNotice] = useState<NoticeState | null>(null);
-  const [taskViewerNotice, setTaskViewerNotice] = useState<NoticeState | null>(null);
-  const [datasetViewerNotice, setDatasetViewerNotice] = useState<NoticeState | null>(null);
-
-  const [recentTaskIds, setRecentTaskIds] = useState<string[]>(() => readStoredIds(RECENT_TASKS_KEY));
-  const [recentDatasetIds, setRecentDatasetIds] = useState<string[]>(() =>
-    readStoredIds(RECENT_DATASETS_KEY)
-  );
-
-  const [taskLookupId, setTaskLookupId] = useState("");
-  const [selectedTask, setSelectedTask] = useState<TaskResource | null>(null);
-  const [selectedCorrections, setSelectedCorrections] = useState<CorrectionResource[]>([]);
-  const [isLoadingTask, setIsLoadingTask] = useState(false);
-
-  const [datasetLookupId, setDatasetLookupId] = useState("");
-  const [datasetHistory, setDatasetHistory] = useState<DatasetHistoryResult | null>(null);
-  const [latestDatasetVersion, setLatestDatasetVersion] = useState<LatestDatasetVersionResult | null>(null);
-  const [isLoadingDatasetHistory, setIsLoadingDatasetHistory] = useState(false);
-  const [isLoadingLatestDataset, setIsLoadingLatestDataset] = useState(false);
-
-  const [isCreatingTask, setIsCreatingTask] = useState(false);
-  const [isSubmittingCorrection, setIsSubmittingCorrection] = useState(false);
-  const [isRegisteringDataset, setIsRegisteringDataset] = useState(false);
   const [isLoadingAgentWorkspace, setIsLoadingAgentWorkspace] = useState(false);
   const [isRunningAgent, setIsRunningAgent] = useState(false);
   const [isUploadingAgentArtifact, setIsUploadingAgentArtifact] = useState(false);
-  const activeWalletProvider = useMemo(
-    () => walletOptions.find((option) => option.id === selectedWalletId)?.provider ?? null,
-    [selectedWalletId, walletOptions]
-  );
-  const hasDetectedWallet = walletOptions.some((option) => option.provider !== null);
+
+  const activeWalletProvider =
+    selectedWalletId === null
+      ? null
+      : walletOptions.find((option) => option.id === selectedWalletId)?.provider ?? null;
 
   useEffect(() => {
-    writeStoredIds(RECENT_TASKS_KEY, recentTaskIds);
-  }, [recentTaskIds]);
-
-  useEffect(() => {
-    writeStoredIds(RECENT_DATASETS_KEY, recentDatasetIds);
-  }, [recentDatasetIds]);
-
-  useEffect(() => {
-    writeStoredIds(AGENT_LIBRARY_KEY, agentLibraryIds);
-  }, [agentLibraryIds]);
+    writeStoredIds(AGENT_LIBRARY_KEY, libraryIds);
+  }, [libraryIds]);
 
   useEffect(() => {
     writeStoredArtifacts(uploadedArtifacts);
@@ -364,10 +274,10 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
         const nextUploadedArtifacts = nextLibraryArtifacts.filter((artifact) => artifact.source === "upload");
 
         setMarketplaceArtifacts(nextMarketplaceArtifacts.length > 0 ? nextMarketplaceArtifacts : MARKETPLACE_ARTIFACTS);
-        setUploadedArtifacts((current) => mergeDemoArtifacts(nextUploadedArtifacts, current).filter((artifact) => artifact.source === "upload"));
-        setAgentLibraryIds(
-          nextLibraryArtifacts.length > 0 ? nextLibraryArtifacts.map((artifact) => artifact.id) : [DEFAULT_AGENT_ARTIFACT_ID]
+        setUploadedArtifacts((current) =>
+          mergeDemoArtifacts(nextUploadedArtifacts, current).filter((artifact) => artifact.source === "upload")
         );
+        setLibraryIds(normalizeLibraryIds(nextLibraryArtifacts.map((artifact) => artifact.id)));
       } catch (error) {
         if (isMounted) {
           setAgentNotice({
@@ -455,6 +365,34 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
   const walletChainId = parseHexChainId(walletChainIdHex);
   const hasWalletConnection = walletAccount !== null && isAddress(walletAccount);
   const chainMismatch = walletChainId !== null && walletChainId !== walletConfig.chainId;
+  const connectedStateLabel = hasWalletConnection ? shortId(walletAccount ?? "") : "Not connected";
+  const allArtifacts = useMemo(
+    () => mergeDemoArtifacts(marketplaceArtifacts, uploadedArtifacts),
+    [marketplaceArtifacts, uploadedArtifacts]
+  );
+  const libraryArtifacts = useMemo(
+    () =>
+      libraryIds
+        .map((artifactId) => allArtifacts.find((artifact) => artifact.id === artifactId))
+        .filter((artifact): artifact is DemoArtifact => artifact !== undefined),
+    [libraryIds, allArtifacts]
+  );
+  const selectedMarketplaceArtifact =
+    marketplaceArtifacts.find((artifact) => artifact.id === selectedMarketplaceArtifactId) ?? marketplaceArtifacts[0] ?? null;
+  const localAgentComparison = useMemo(
+    () => buildAgentComparison(agentQuestion, libraryArtifacts, marketplaceArtifacts),
+    [agentQuestion, libraryArtifacts, marketplaceArtifacts]
+  );
+  const agentComparison =
+    backendAgentComparison !== null && backendAgentComparison.question === agentQuestion
+      ? backendAgentComparison.result
+      : localAgentComparison;
+  const activeAgentAnswer = agentAnswerMode === "artifact" ? agentComparison.augmented : agentComparison.raw;
+  const workspaceTitle = activeWorkspace === "agent" ? "Agent" : "Artifacts";
+  const workspaceCopy =
+    activeWorkspace === "agent"
+      ? "Ask a question and compare raw model output with artifact-grounded output."
+      : "Install, inspect, upload, and manage artifact files that agents can reuse directly.";
 
   async function connectWallet(walletId: WalletProviderKind) {
     const option = walletOptions.find((candidate) => candidate.id === walletId);
@@ -487,10 +425,7 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
       setSelectedWalletId(walletId);
       setWalletAccount(accounts[0] ?? null);
       setWalletChainIdHex(chainId);
-      setWalletNotice({
-        tone: "success",
-        message: accounts[0] ? `Connected ${shortId(accounts[0])} with ${walletLabel}.` : `${walletLabel} connected.`
-      });
+      setWalletNotice(null);
     } catch (error) {
       setWalletNotice({
         tone: "error",
@@ -558,36 +493,14 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
     });
   }
 
-  const latestVersion = latestDatasetVersion?.version ?? null;
-  const currentDatasetHistory = datasetHistory?.versions ?? [];
-  const connectedStateLabel = hasWalletConnection ? shortId(walletAccount ?? "") : "Not connected";
-  const allAgentArtifacts = useMemo(
-    () => mergeDemoArtifacts(marketplaceArtifacts, uploadedArtifacts),
-    [marketplaceArtifacts, uploadedArtifacts]
-  );
-  const agentLibraryArtifacts = useMemo(
-    () =>
-      agentLibraryIds
-        .map((artifactId) => allAgentArtifacts.find((artifact) => artifact.id === artifactId))
-        .filter((artifact): artifact is DemoArtifact => artifact !== undefined),
-    [agentLibraryIds, allAgentArtifacts]
-  );
-  const selectedMarketplaceArtifact =
-    allAgentArtifacts.find((artifact) => artifact.id === selectedMarketplaceArtifactId) ?? allAgentArtifacts[0] ?? null;
-  const localAgentComparison = useMemo(
-    () => buildAgentComparison(agentQuestion, agentLibraryArtifacts, marketplaceArtifacts),
-    [agentQuestion, agentLibraryArtifacts, marketplaceArtifacts]
-  );
-  const agentComparison =
-    backendAgentComparison !== null && backendAgentComparison.question === agentQuestion
-      ? backendAgentComparison.result
-      : localAgentComparison;
-  const activeAgentAnswer = agentAnswerMode === "artifact" ? agentComparison.augmented : agentComparison.raw;
+  function handleWorkspaceChange(workspace: WorkspaceKey) {
+    setActiveWorkspace(workspace);
+  }
 
   async function addArtifactToLibrary(artifactId: string) {
     setBackendAgentComparison(null);
-    setAgentLibraryIds((current) =>
-      current.includes(artifactId) ? current : [artifactId, ...current].slice(0, 12)
+    setLibraryIds((current) =>
+      current.includes(artifactId) ? current : normalizeLibraryIds([artifactId, ...current].slice(0, 12))
     );
 
     try {
@@ -595,7 +508,7 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
       const nextLibraryArtifacts = result.library.map(toDemoArtifact);
       const nextUploadedArtifacts = nextLibraryArtifacts.filter((artifact) => artifact.source === "upload");
 
-      setAgentLibraryIds(nextLibraryArtifacts.map((artifact) => artifact.id));
+      setLibraryIds(normalizeLibraryIds(nextLibraryArtifacts.map((artifact) => artifact.id)));
       setUploadedArtifacts((current) =>
         mergeDemoArtifacts(nextUploadedArtifacts, current).filter((artifact) => artifact.source === "upload")
       );
@@ -613,11 +526,11 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
 
   async function removeArtifactFromLibrary(artifactId: string) {
     setBackendAgentComparison(null);
-    setAgentLibraryIds((current) => current.filter((candidate) => candidate !== artifactId));
+    setLibraryIds((current) => current.filter((candidate) => candidate !== artifactId));
 
     try {
       const result = await removeAgentArtifactFromLibrary(artifactId);
-      setAgentLibraryIds(result.library.map((artifact) => artifact.id));
+      setLibraryIds(result.library.map((artifact) => artifact.id));
       setAgentNotice({
         tone: "neutral",
         message: "Artifact removed from library."
@@ -631,9 +544,8 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
   }
 
   function useArtifactWithAgent(artifact: DemoArtifact) {
-    setAgentQuestion(artifact.questionPattern);
+    setAgentQuestion(artifact.id === DEFAULT_AGENT_ARTIFACT_ID ? DEFAULT_AGENT_QUESTION : artifact.questionPattern);
     setActiveWorkspace("agent");
-    setActiveAgentSection("ask");
     setAgentAnswerMode("artifact");
     void addArtifactToLibrary(artifact.id);
   }
@@ -664,7 +576,7 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
           : { tone: "neutral", message: "Raw answer is available. Add a matching artifact for the augmented path." }
       );
     } catch (error) {
-      const matchedArtifact = findBestArtifact(trimmedQuestion, agentLibraryArtifacts);
+      const matchedArtifact = findBestArtifact(trimmedQuestion, libraryArtifacts);
       setBackendAgentComparison(null);
       setAgentNotice(
         matchedArtifact
@@ -726,12 +638,13 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
       setUploadedArtifacts((current) =>
         mergeDemoArtifacts([artifact, ...nextUploadedArtifacts], current).filter((candidate) => candidate.source === "upload")
       );
-      setAgentLibraryIds(nextLibraryArtifacts.map((candidate) => candidate.id));
-      setSelectedMarketplaceArtifactId(artifact.id);
+      setLibraryIds(nextLibraryArtifacts.map((candidate) => candidate.id));
+      setSelectedMarketplaceArtifactId(DEFAULT_AGENT_ARTIFACT_ID);
       setUploadArtifactForm(createEmptyUploadArtifactForm());
       setAgentQuestion(artifact.questionPattern);
       setAgentAnswerMode("artifact");
-      setActiveAgentSection("library");
+      setActiveArtifactSection("library");
+      setActiveWorkspace("artifacts");
       setAgentNotice({ tone: "success", message: "Uploaded artifact stored and added to library." });
       return;
     } catch (error) {
@@ -757,1159 +670,41 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
     };
 
     setUploadedArtifacts((current) => [artifact, ...current].slice(0, 12));
-    setAgentLibraryIds((current) => [artifact.id, ...current.filter((candidate) => candidate !== artifact.id)].slice(0, 12));
-    setSelectedMarketplaceArtifactId(artifact.id);
+    setLibraryIds((current) => [artifact.id, ...current.filter((candidate) => candidate !== artifact.id)].slice(0, 12));
+    setSelectedMarketplaceArtifactId(DEFAULT_AGENT_ARTIFACT_ID);
     setUploadArtifactForm(createEmptyUploadArtifactForm());
     setAgentQuestion(artifact.questionPattern);
     setAgentAnswerMode("artifact");
-    setActiveAgentSection("library");
+    setActiveArtifactSection("library");
+    setActiveWorkspace("artifacts");
     setAgentNotice({ tone: "success", message: "Uploaded artifact added to library." });
   }
 
-  async function handleCreateTask(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!hasWalletConnection || walletAccount === null) {
-      setTaskNotice({ tone: "error", message: "Connect a wallet before creating a task." });
-      return;
-    }
-
-    const validationError = validateTaskForm(taskForm);
-    if (validationError !== null) {
-      setTaskNotice({ tone: "error", message: validationError });
-      return;
-    }
-
-    setIsCreatingTask(true);
-    setTaskNotice({ tone: "neutral", message: "Creating task via backend and contract..." });
-
-    try {
-      const result = await createTask({
-        taskId: taskForm.taskId.trim(),
-        creatorAddress: walletAccount,
-        ...optionalField("metadataUri", taskForm.metadataUri),
-        ...optionalField("metadataHash", taskForm.metadataHash),
-        ...optionalField("stakeAmountWei", taskForm.stakeAmountWei)
-      });
-
-      setTaskNotice({
-        tone: "success",
-        message: `Task ${shortId(result.contractTaskId)} created successfully.`
-      });
-      setActiveWorkspace("tasks");
-      setActiveTaskSection("details");
-      setTaskForm(createEmptyTaskForm());
-      setCorrectionForm((current) => ({ ...current, taskId: result.task.taskId }));
-      setTaskLookupId(result.task.taskId);
-      appendRecentId(setRecentTaskIds, result.task.taskId);
-      await loadTaskDetail(result.task.taskId);
-    } catch (error) {
-      setTaskNotice({ tone: "error", message: formatError(error) });
-    } finally {
-      setIsCreatingTask(false);
-    }
-  }
-
-  async function handleSubmitCorrection(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!hasWalletConnection || walletAccount === null) {
-      setCorrectionNotice({ tone: "error", message: "Connect a wallet before submitting a correction." });
-      return;
-    }
-
-    const validationError = validateCorrectionForm(correctionForm);
-    if (validationError !== null) {
-      setCorrectionNotice({ tone: "error", message: validationError });
-      return;
-    }
-
-    setIsSubmittingCorrection(true);
-    setCorrectionNotice({ tone: "neutral", message: "Submitting correction..." });
-
-    try {
-      const result = await submitCorrection(correctionForm.taskId.trim(), {
-        submitterAddress: walletAccount,
-        ...optionalField("metadataUri", correctionForm.metadataUri),
-        ...optionalField("metadataHash", correctionForm.metadataHash),
-        ...optionalField("stakeAmountWei", correctionForm.stakeAmountWei)
-      });
-
-      setCorrectionNotice({
-        tone: "success",
-        message: `Correction #${result.correction.correctionId} saved successfully.`
-      });
-      setActiveWorkspace("tasks");
-      setActiveTaskSection("details");
-      setCorrectionForm((current) => ({ ...createEmptyCorrectionForm(), taskId: current.taskId }));
-      appendRecentId(setRecentTaskIds, result.correction.taskId);
-      setTaskLookupId(result.correction.taskId);
-      await loadTaskDetail(result.correction.taskId);
-    } catch (error) {
-      setCorrectionNotice({ tone: "error", message: formatError(error) });
-    } finally {
-      setIsSubmittingCorrection(false);
-    }
-  }
-
-  async function handleRegisterDatasetVersion(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!hasWalletConnection || walletAccount === null) {
-      setDatasetNotice({ tone: "error", message: "Connect a wallet before registering a dataset version." });
-      return;
-    }
-
-    const validationError = validateDatasetForm(datasetForm);
-    if (validationError !== null) {
-      setDatasetNotice({ tone: "error", message: validationError });
-      return;
-    }
-
-    setIsRegisteringDataset(true);
-    setDatasetNotice({ tone: "neutral", message: "Registering dataset version..." });
-
-    try {
-      const result = await registerDatasetVersion(datasetForm.datasetId.trim(), {
-        registeredBy: walletAccount,
-        ...optionalField("metadataUri", datasetForm.metadataUri),
-        ...optionalField("metadataHash", datasetForm.metadataHash),
-        ...optionalField("immutableRef", datasetForm.immutableRef),
-        entries: datasetForm.entries.map((entry) =>
-          entry.sourceType === "TASK"
-            ? {
-                sourceType: "TASK" as const,
-                taskId: entry.referenceId.trim(),
-                ...optionalField("metadataUri", entry.metadataUri),
-                ...optionalField("metadataHash", entry.metadataHash)
-              }
-            : {
-                sourceType: "CORRECTION" as const,
-                correctionId: entry.referenceId.trim(),
-                ...optionalField("metadataUri", entry.metadataUri),
-                ...optionalField("metadataHash", entry.metadataHash)
-              }
-        )
-      });
-
-      setDatasetNotice({
-        tone: "success",
-        message: `Dataset ${shortId(result.dataset.datasetId)} version ${result.version.versionNumber} registered.`
-      });
-      setActiveWorkspace("datasets");
-      setActiveDatasetSection("latest");
-      setDatasetForm((current) => ({ ...createEmptyDatasetForm(), datasetId: current.datasetId }));
-      setDatasetLookupId(result.dataset.datasetId);
-      appendRecentId(setRecentDatasetIds, result.dataset.datasetId);
-      await Promise.all([
-        loadDatasetHistoryView(result.dataset.datasetId),
-        loadLatestDatasetView(result.dataset.datasetId)
-      ]);
-    } catch (error) {
-      setDatasetNotice({ tone: "error", message: formatError(error) });
-    } finally {
-      setIsRegisteringDataset(false);
-    }
-  }
-
-  async function loadTaskDetail(taskIdValue: string) {
-    setIsLoadingTask(true);
-    setTaskViewerNotice({
-      tone: "neutral",
-      message: `Loading task ${shortId(taskIdValue)}...`
-    });
-
-    try {
-      const [task, correctionData] = await Promise.all([getTask(taskIdValue), getTaskCorrections(taskIdValue)]);
-
-      setSelectedTask(task);
-      setSelectedCorrections(correctionData.corrections);
-      setActiveWorkspace("tasks");
-      setActiveTaskSection("details");
-      setTaskViewerNotice({
-        tone: "success",
-        message: `Loaded task ${shortId(task.taskId)} and ${correctionData.corrections.length} correction(s).`
-      });
-      appendRecentId(setRecentTaskIds, task.taskId);
-      setCorrectionForm((current) => ({ ...current, taskId: task.taskId }));
-    } catch (error) {
-      setTaskViewerNotice({ tone: "error", message: formatError(error) });
-      setSelectedTask(null);
-      setSelectedCorrections([]);
-    } finally {
-      setIsLoadingTask(false);
-    }
-  }
-
-  async function loadDatasetHistoryView(datasetIdValue: string) {
-    setIsLoadingDatasetHistory(true);
-    setDatasetViewerNotice({
-      tone: "neutral",
-      message: `Loading dataset history for ${shortId(datasetIdValue)}...`
-    });
-
-    try {
-      const history = await getDatasetHistory(datasetIdValue);
-      setDatasetHistory(history);
-      setActiveWorkspace("datasets");
-      setActiveDatasetSection("history");
-      setDatasetViewerNotice({
-        tone: "success",
-        message: `Loaded ${history.versions.length} dataset version(s).`
-      });
-      appendRecentId(setRecentDatasetIds, datasetIdValue);
-    } catch (error) {
-      setDatasetViewerNotice({ tone: "error", message: formatError(error) });
-      setDatasetHistory(null);
-    } finally {
-      setIsLoadingDatasetHistory(false);
-    }
-  }
-
-  async function loadLatestDatasetView(datasetIdValue: string) {
-    setIsLoadingLatestDataset(true);
-
-    try {
-      const latest = await getLatestDatasetVersion(datasetIdValue);
-      setLatestDatasetVersion(latest);
-      setActiveWorkspace("datasets");
-      setActiveDatasetSection("latest");
-      setDatasetViewerNotice({
-        tone: "success",
-        message: `Loaded latest dataset version v${latest.version.versionNumber}.`
-      });
-      appendRecentId(setRecentDatasetIds, datasetIdValue);
-    } catch (error) {
-      setDatasetViewerNotice({ tone: "error", message: formatError(error) });
-      setLatestDatasetVersion(null);
-    } finally {
-      setIsLoadingLatestDataset(false);
-    }
-  }
-
-  function updateDatasetEntry(entryId: string, updates: Partial<DatasetEntryDraft>) {
-    setDatasetForm((current) => ({
-      ...current,
-      entries: current.entries.map((entry) =>
-        entry.id === entryId ? { ...entry, ...updates } : entry
-      )
-    }));
-  }
-
-  const latestDatasetLabel =
-    latestVersion === null ? "Not loaded" : `v${latestVersion.versionNumber}`;
-  const walletStatusLabel = chainMismatch ? "Action needed" : hasWalletConnection ? "Connected" : "Wallet offline";
-  const workspaceTitle =
-    activeWorkspace === "tasks"
-      ? "Task workspace"
-      : activeWorkspace === "datasets"
-        ? "Dataset workspace"
-        : "Agent workspace";
-  const workspaceCopy =
-    activeWorkspace === "tasks"
-      ? "Create base tasks, attach corrections, and inspect the canonical task record without leaving the same surface."
-      : activeWorkspace === "datasets"
-        ? "Register new dataset versions and review version lineage through a focused glass explorer."
-        : "Compare raw model output with library-backed artifact retrieval in one demo flow.";
-  const taskSectionItems: WorkspaceSectionNavItem<TaskSectionKey>[] = [
-    { key: "details", label: "Task Details" },
-    { key: "create", label: "Create Task" },
-    { key: "correction", label: "Correction" },
-    { key: "session", label: "Session" }
+  const artifactSectionItems = [
+    { key: "marketplace" as const, label: "Marketplace" },
+    { key: "library" as const, label: "Library" },
+    { key: "upload" as const, label: "Upload" }
   ];
-  const datasetSectionItems: WorkspaceSectionNavItem<DatasetSectionKey>[] = [
-    { key: "latest", label: "Latest View" },
-    { key: "history", label: "History" },
-    { key: "register", label: "Register" },
-    { key: "session", label: "Session" }
-  ];
-  const agentSectionItems: WorkspaceSectionNavItem<AgentSectionKey>[] = [
-    { key: "ask", label: "Ask Agent" },
-    { key: "marketplace", label: "Marketplace" },
-    { key: "library", label: "Library" },
-    { key: "upload", label: "Upload" }
-  ];
-  const taskWorkspaceRecentItems = recentTaskIds.length > 0 ? recentTaskIds : ["Quarterly Planning", "Review Specs", "Client Onboarding"];
-  const taskWorkspacePinnedItems = recentTaskIds.slice(0, 2);
-  const taskWorkspaceTitle =
-    activeTaskSection === "create"
-      ? "Create Task"
-      : activeTaskSection === "correction"
-        ? "Submit Correction"
-        : activeTaskSection === "session"
-          ? "Session Status"
-          : selectedTask
-            ? shortId(selectedTask.taskId)
-            : "Quarterly Planning";
-  const taskWorkspaceStatus =
-    activeTaskSection === "create"
-      ? "Draft"
-      : activeTaskSection === "correction"
-        ? "Ready"
-        : activeTaskSection === "session"
-          ? walletStatusLabel
-          : selectedTask
-            ? "Loaded"
-            : "In Progress";
-  const taskWorkspaceFooterForm =
-    activeTaskSection === "create"
-      ? "task-create-form"
-      : activeTaskSection === "correction"
-        ? "task-correction-form"
-        : undefined;
-  const taskWorkspaceFooterAction =
-    activeTaskSection === "create"
-      ? isCreatingTask
-        ? "Creating..."
-        : "Create Task"
-      : activeTaskSection === "correction"
-        ? isSubmittingCorrection
-          ? "Submitting..."
-          : "Submit Correction"
-        : activeTaskSection === "details"
-          ? isLoadingTask
-            ? "Loading..."
-            : "Load Task"
-          : hasWalletConnection
-            ? "Disconnect"
-            : "Connect";
 
-  const sessionPanel = (
-    <Panel
-      title="Session Status"
-      eyebrow="Access"
-      action={
-        <button
-          type="button"
-          className="button button-secondary"
-          onClick={hasWalletConnection ? disconnectWallet : connectFirstAvailableWallet}
-          disabled={isConnectingWallet}
-        >
-          {hasWalletConnection ? "Disconnect" : "Connect"}
-        </button>
-      }
-    >
-      {walletNotice ? <StatusNotice tone={walletNotice.tone} message={walletNotice.message} /> : null}
-      <div className="detail-grid compact-grid">
-        <Detail label="Injected provider" value={hasDetectedWallet ? "Detected" : "Not found"} />
-        <Detail label="Connected account" value={walletAccount ?? "Not connected"} mono />
-        <Detail
-          label="Wallet chain"
-          value={walletChainId === null ? "Unknown" : `${walletChainId} (${walletChainIdHex})`}
-          mono
-        />
-        <Detail label="Configured network" value={`${walletConfig.chainName} (${walletConfig.chainId})`} />
-      </div>
-      {chainMismatch ? (
-        <div className="inline-actions">
-          <StatusNotice
-            tone="error"
-            message={`Wallet is on chain ${walletChainId}. Switch to ${walletConfig.chainName} to match the configured demo network.`}
-          />
-          <button type="button" className="button button-secondary" onClick={handleSwitchNetwork}>
-            Switch Network
-          </button>
-        </div>
-      ) : null}
-    </Panel>
-  );
-
-  const taskWorkspaceBlock = (
-    <section className="task-notion-workspace" aria-label="Task workspace">
-      <aside className="task-notion-sidebar">
-        <div className="task-sidebar-header">
-          <div className="task-sidebar-mark">
-            <Star size={16} />
-          </div>
-          <h2>Project Space</h2>
-        </div>
-
-        <button type="button" className="task-sidebar-cta" onClick={() => setActiveTaskSection("create")}>
-          <Plus size={17} />
-          <span>New Task</span>
-        </button>
-
-        <label className="task-search">
-          <Search size={15} />
-          <input
-            value={taskLookupId}
-            onChange={(event) => setTaskLookupId(event.target.value)}
-            placeholder="Search tasks..."
-          />
-        </label>
-
-        <div className="task-sidebar-scroll">
-          <nav className="task-sidebar-nav" aria-label="Task sections">
-            {taskSectionItems.map((item) => (
-              <button
-                type="button"
-                key={item.key}
-                className={`task-sidebar-link ${activeTaskSection === item.key ? "task-sidebar-link-active" : ""}`}
-                onClick={() => setActiveTaskSection(item.key)}
-              >
-                {item.key === "details" ? <CheckCircle size={17} /> : null}
-                {item.key === "create" ? <Plus size={17} /> : null}
-                {item.key === "correction" ? <Inbox size={17} /> : null}
-                {item.key === "session" ? <Cloud size={17} /> : null}
-                <span>{item.label}</span>
-              </button>
-            ))}
-            <button type="button" className="task-sidebar-link">
-              <Archive size={17} />
-              <span>Archive</span>
-            </button>
-          </nav>
-
-          <div className="task-sidebar-group">
-            <h3>Pinned</h3>
-            {(taskWorkspacePinnedItems.length > 0 ? taskWorkspacePinnedItems : ["Quarterly Planning", "Launch Campaign"]).map(
-              (item) => (
-                <button
-                  type="button"
-                  className="task-sidebar-small-link"
-                  key={item}
-                  onClick={() => {
-                    if (item.startsWith("0x")) {
-                      setTaskLookupId(item);
-                      setActiveTaskSection("details");
-                      void loadTaskDetail(item);
-                    }
-                  }}
-                >
-                  <Pin size={14} />
-                  <span>{item.startsWith("0x") ? shortId(item) : item}</span>
-                </button>
-              )
-            )}
-          </div>
-
-          <div className="task-sidebar-group">
-            <h3>Recent Tasks</h3>
-            {taskWorkspaceRecentItems.slice(0, 6).map((item) => (
-              <button
-                type="button"
-                className="task-sidebar-small-link"
-                key={item}
-                onClick={() => {
-                  if (item.startsWith("0x")) {
-                    setTaskLookupId(item);
-                    setActiveTaskSection("details");
-                    void loadTaskDetail(item);
-                  }
-                }}
-              >
-                <FileText size={14} />
-                <span>{item.startsWith("0x") ? shortId(item) : item}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="task-sidebar-footer">
-          <button type="button" className="task-sidebar-link">
-            <Settings size={17} />
-            <span>Settings</span>
-          </button>
-          <button type="button" className="task-sidebar-link">
-            <HelpCircle size={17} />
-            <span>Help</span>
-          </button>
-        </div>
-      </aside>
-
-      <div className="task-notion-main">
-        <header className="task-notion-topbar">
-          <div className="task-breadcrumbs">
-            <strong>Workspace</strong>
-            <span>/</span>
-            <button type="button" onClick={() => setActiveTaskSection("details")}>
-              Tasks
-            </button>
-            <span>/</span>
-            <em>{taskWorkspaceTitle}</em>
-          </div>
-
-          <div className="task-topbar-actions">
-            <button type="button">Share</button>
-            <button type="button">Updates</button>
-            <button type="button">Favorite</button>
-            <span />
-            <button type="button" aria-label="Favorite task">
-              <Star size={18} />
-            </button>
-            <button type="button" aria-label="Task options">
-              <MoreHorizontal size={18} />
-            </button>
-            <div className="task-avatar" aria-hidden="true">
-              DL
-            </div>
-          </div>
-        </header>
-
-        <main className="task-document-canvas">
-          <div className="task-document-inner">
-            <div className="task-document-header">
-              <div className="task-document-icon" aria-hidden="true">
-                <FileText size={46} />
-              </div>
-              <h1>{taskWorkspaceTitle}</h1>
-            </div>
-
-            <div className="task-metadata-row">
-              <div className="task-property">
-                <Calendar size={16} />
-                <span>{formatDateTime(new Date().toISOString())}</span>
-              </div>
-              <div className="task-property-divider" />
-              <div className="task-property">
-                <CircleDashed size={16} />
-                <span className="task-status-chip">
-                  <i />
-                  {taskWorkspaceStatus}
-                </span>
-              </div>
-              <div className="task-property-divider" />
-              <div className="task-property">
-                <Flag size={16} />
-                <span className="task-priority-chip">High Priority</span>
-              </div>
-              <div className="task-property-divider" />
-              <div className="task-property">
-                <Tag size={16} />
-                <span>Planning</span>
-              </div>
-              <button type="button" className="task-add-property" aria-label="Add property">
-                <Plus size={17} />
-              </button>
-            </div>
-
-            <div className="task-document-body">
-              {activeTaskSection === "create" ? (
-                <form id="task-create-form" className="task-doc-form" onSubmit={handleCreateTask}>
-                  {taskNotice ? <StatusNotice tone={taskNotice.tone} message={taskNotice.message} /> : null}
-                  <Field label="Task ID" helper="Use a bytes32 hex value.">
-                    <div className="field-row">
-                      <input
-                        value={taskForm.taskId}
-                        onChange={(event) => setTaskForm((current) => ({ ...current, taskId: event.target.value }))}
-                        placeholder="0x..."
-                      />
-                      <button
-                        type="button"
-                        className="button button-secondary"
-                        onClick={() => setTaskForm((current) => ({ ...current, taskId: generateBytes32Hex() }))}
-                      >
-                        Generate
-                      </button>
-                    </div>
-                  </Field>
-                  <Field label="Metadata URI">
-                    <input
-                      value={taskForm.metadataUri}
-                      onChange={(event) => setTaskForm((current) => ({ ...current, metadataUri: event.target.value }))}
-                      placeholder="ipfs://task-metadata"
-                    />
-                  </Field>
-                  <Field label="Metadata Hash">
-                    <input
-                      value={taskForm.metadataHash}
-                      onChange={(event) => setTaskForm((current) => ({ ...current, metadataHash: event.target.value }))}
-                      placeholder="0x..."
-                    />
-                  </Field>
-                  <Field label="Stake Amount (wei)" helper="Optional. Use a whole-number wei string.">
-                    <input
-                      value={taskForm.stakeAmountWei}
-                      onChange={(event) =>
-                        setTaskForm((current) => ({ ...current, stakeAmountWei: event.target.value }))
-                      }
-                      placeholder="0"
-                    />
-                  </Field>
-                </form>
-              ) : activeTaskSection === "correction" ? (
-                <form id="task-correction-form" className="task-doc-form" onSubmit={handleSubmitCorrection}>
-                  {correctionNotice ? <StatusNotice tone={correctionNotice.tone} message={correctionNotice.message} /> : null}
-                  <Field label="Task ID">
-                    <input
-                      value={correctionForm.taskId}
-                      onChange={(event) => setCorrectionForm((current) => ({ ...current, taskId: event.target.value }))}
-                      placeholder="0x..."
-                    />
-                  </Field>
-                  <Field label="Correction Metadata URI">
-                    <input
-                      value={correctionForm.metadataUri}
-                      onChange={(event) =>
-                        setCorrectionForm((current) => ({ ...current, metadataUri: event.target.value }))
-                      }
-                      placeholder="ipfs://correction-metadata"
-                    />
-                  </Field>
-                  <Field label="Correction Metadata Hash">
-                    <input
-                      value={correctionForm.metadataHash}
-                      onChange={(event) =>
-                        setCorrectionForm((current) => ({ ...current, metadataHash: event.target.value }))
-                      }
-                      placeholder="0x..."
-                    />
-                  </Field>
-                  <Field label="Stake Amount (wei)" helper="Optional.">
-                    <input
-                      value={correctionForm.stakeAmountWei}
-                      onChange={(event) =>
-                        setCorrectionForm((current) => ({ ...current, stakeAmountWei: event.target.value }))
-                      }
-                      placeholder="0"
-                    />
-                  </Field>
-                </form>
-              ) : activeTaskSection === "session" ? (
-                <div className="task-doc-form">
-                  {walletNotice ? <StatusNotice tone={walletNotice.tone} message={walletNotice.message} /> : null}
-                  <div className="task-detail-grid">
-                    <Detail label="Injected provider" value={hasDetectedWallet ? "Detected" : "Not found"} />
-                    <Detail label="Connected account" value={walletAccount ?? "Not connected"} mono />
-                    <Detail
-                      label="Wallet chain"
-                      value={walletChainId === null ? "Unknown" : `${walletChainId} (${walletChainIdHex})`}
-                      mono
-                    />
-                    <Detail label="Configured network" value={`${walletConfig.chainName} (${walletConfig.chainId})`} />
-                  </div>
-                  {chainMismatch ? (
-                    <div className="inline-actions">
-                      <StatusNotice
-                        tone="error"
-                        message={`Wallet is on chain ${walletChainId}. Switch to ${walletConfig.chainName} to match the configured demo network.`}
-                      />
-                      <button type="button" className="button button-secondary" onClick={handleSwitchNetwork}>
-                        Switch Network
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <div
-                  className="task-doc-readable"
-                  data-placeholder="Start writing task notes... press '/' for commands"
-                >
-                  {taskViewerNotice ? <StatusNotice tone={taskViewerNotice.tone} message={taskViewerNotice.message} /> : null}
-                  <div className="task-load-row">
-                    <input
-                      value={taskLookupId}
-                      onChange={(event) => setTaskLookupId(event.target.value)}
-                      placeholder="Enter task ID to load"
-                    />
-                    <button
-                      className="button button-primary"
-                      type="button"
-                      onClick={() => taskLookupId.trim().length > 0 && void loadTaskDetail(taskLookupId.trim())}
-                      disabled={isLoadingTask}
-                    >
-                      {isLoadingTask ? "Loading..." : "Load"}
-                    </button>
-                  </div>
-                  {isLoadingTask && selectedTask === null ? (
-                    <LoadingState message="Fetching the latest task record..." />
-                  ) : selectedTask ? (
-                    renderSelectedTask(selectedTask, selectedCorrections)
-                  ) : (
-                    <>
-                      <p>
-                        Here are the initial thoughts for the next task cycle. Load an on-chain task record or create a
-                        new one from the sidebar.
-                      </p>
-                      <ul className="task-checklist">
-                        <li>
-                          <span className="task-drag-handle">::</span>
-                          <span className="task-checkbox" />
-                          <span>Finalize shared metadata structure.</span>
-                        </li>
-                        <li>
-                          <span className="task-drag-handle">::</span>
-                          <span className="task-checkbox task-checkbox-checked">
-                            <Check size={12} />
-                          </span>
-                          <span>Review design system visual tokens.</span>
-                        </li>
-                      </ul>
-                      <p>Recent and pinned task IDs appear in the sidebar as soon as they are created or loaded.</p>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </main>
-
-        <footer className="task-document-footer">
-          <div className="task-save-state">
-            <Cloud size={16} />
-            <span>Saved just now</span>
-          </div>
-          <div className="task-footer-actions">
-            <button
-              type="button"
-              onClick={() => {
-                if (activeTaskSection === "create") {
-                  setTaskForm(createEmptyTaskForm());
-                } else if (activeTaskSection === "correction") {
-                  setCorrectionForm(createEmptyCorrectionForm());
-                } else if (activeTaskSection === "details") {
-                  setTaskLookupId("");
-                }
-              }}
-            >
-              Discard
-            </button>
-            <button
-              type={taskWorkspaceFooterForm === undefined ? "button" : "submit"}
-              form={taskWorkspaceFooterForm}
-              onClick={
-                activeTaskSection === "details"
-                  ? () => taskLookupId.trim().length > 0 && void loadTaskDetail(taskLookupId.trim())
-                  : activeTaskSection === "session"
-                    ? hasWalletConnection
-                      ? disconnectWallet
-                      : connectFirstAvailableWallet
-                    : undefined
-              }
-              disabled={isCreatingTask || isSubmittingCorrection || isLoadingTask || isConnectingWallet}
-            >
-              {taskWorkspaceFooterAction}
-            </button>
-          </div>
-        </footer>
-      </div>
-    </section>
-  );
-
-  const taskSectionPanel =
-    activeTaskSection === "create" ? (
-      <Panel title="Create Task" eyebrow="Write Flow">
-        {taskNotice ? <StatusNotice tone={taskNotice.tone} message={taskNotice.message} /> : null}
-        <form className="stack" onSubmit={handleCreateTask}>
-          <Field label="Task ID" helper="Use a bytes32 hex value.">
-            <div className="field-row">
-              <input
-                value={taskForm.taskId}
-                onChange={(event) => setTaskForm((current) => ({ ...current, taskId: event.target.value }))}
-                placeholder="0x..."
-              />
-              <button
-                type="button"
-                className="button button-secondary"
-                onClick={() => setTaskForm((current) => ({ ...current, taskId: generateBytes32Hex() }))}
-              >
-                Generate
-              </button>
-            </div>
-          </Field>
-          <Field label="Metadata URI">
-            <input
-              value={taskForm.metadataUri}
-              onChange={(event) => setTaskForm((current) => ({ ...current, metadataUri: event.target.value }))}
-              placeholder="ipfs://task-metadata"
-            />
-          </Field>
-          <Field label="Metadata Hash">
-            <input
-              value={taskForm.metadataHash}
-              onChange={(event) => setTaskForm((current) => ({ ...current, metadataHash: event.target.value }))}
-              placeholder="0x..."
-            />
-          </Field>
-          <Field label="Stake Amount (wei)" helper="Optional. Use a whole-number wei string.">
-            <input
-              value={taskForm.stakeAmountWei}
-              onChange={(event) => setTaskForm((current) => ({ ...current, stakeAmountWei: event.target.value }))}
-              placeholder="0"
-            />
-          </Field>
-          <button className="button button-primary" type="submit" disabled={isCreatingTask}>
-            {isCreatingTask ? "Creating..." : "Create Task"}
-          </button>
-        </form>
-      </Panel>
-    ) : activeTaskSection === "correction" ? (
-      <Panel title="Submit Correction" eyebrow="Write Flow">
-        {correctionNotice ? <StatusNotice tone={correctionNotice.tone} message={correctionNotice.message} /> : null}
-        <form className="stack" onSubmit={handleSubmitCorrection}>
-          <Field label="Task ID">
-            <input
-              value={correctionForm.taskId}
-              onChange={(event) =>
-                setCorrectionForm((current) => ({ ...current, taskId: event.target.value }))
-              }
-              placeholder="0x..."
-            />
-          </Field>
-          <Field label="Correction Metadata URI">
-            <input
-              value={correctionForm.metadataUri}
-              onChange={(event) =>
-                setCorrectionForm((current) => ({ ...current, metadataUri: event.target.value }))
-              }
-              placeholder="ipfs://correction-metadata"
-            />
-          </Field>
-          <Field label="Correction Metadata Hash">
-            <input
-              value={correctionForm.metadataHash}
-              onChange={(event) =>
-                setCorrectionForm((current) => ({ ...current, metadataHash: event.target.value }))
-              }
-              placeholder="0x..."
-            />
-          </Field>
-          <Field label="Stake Amount (wei)" helper="Optional.">
-            <input
-              value={correctionForm.stakeAmountWei}
-              onChange={(event) =>
-                setCorrectionForm((current) => ({ ...current, stakeAmountWei: event.target.value }))
-              }
-              placeholder="0"
-            />
-          </Field>
-          <button className="button button-primary" type="submit" disabled={isSubmittingCorrection}>
-            {isSubmittingCorrection ? "Submitting..." : "Submit Correction"}
-          </button>
-        </form>
-      </Panel>
-    ) : activeTaskSection === "session" ? (
-      sessionPanel
-    ) : (
-      <Panel title="Task Explorer" eyebrow="Read Flow">
-        {taskViewerNotice ? <StatusNotice tone={taskViewerNotice.tone} message={taskViewerNotice.message} /> : null}
-        <div className="stack">
-          <div className="field-row">
-            <input
-              value={taskLookupId}
-              onChange={(event) => setTaskLookupId(event.target.value)}
-              placeholder="Enter task ID to load"
-            />
-            <button
-              className="button button-primary"
-              type="button"
-              onClick={() => taskLookupId.trim().length > 0 && void loadTaskDetail(taskLookupId.trim())}
-              disabled={isLoadingTask}
-            >
-              {isLoadingTask ? "Loading..." : "Load"}
-            </button>
-          </div>
-          <RecentIdList
-            title="Recent Tasks"
-            ids={recentTaskIds}
-            onSelect={(value) => {
-              setTaskLookupId(value);
-              void loadTaskDetail(value);
-            }}
-          />
-          {isLoadingTask && selectedTask === null ? (
-            <LoadingState message="Fetching the latest task record..." />
-          ) : selectedTask ? (
-            renderSelectedTask(selectedTask, selectedCorrections)
-          ) : (
-            <EmptyState message="Load a task to inspect its canonical record and corrections." />
-          )}
-        </div>
-      </Panel>
-    );
-
-  const datasetSectionPanel =
-    activeDatasetSection === "register" ? (
-      <Panel title="Register Dataset Version" eyebrow="Write Flow">
-        {datasetNotice ? <StatusNotice tone={datasetNotice.tone} message={datasetNotice.message} /> : null}
-        <form className="stack" onSubmit={handleRegisterDatasetVersion}>
-          <Field label="Dataset ID">
-            <div className="field-row">
-              <input
-                value={datasetForm.datasetId}
-                onChange={(event) => setDatasetForm((current) => ({ ...current, datasetId: event.target.value }))}
-                placeholder="0x..."
-              />
-              <button
-                type="button"
-                className="button button-secondary"
-                onClick={() =>
-                  setDatasetForm((current) => ({ ...current, datasetId: generateBytes32Hex() }))
-                }
-              >
-                Generate
-              </button>
-            </div>
-          </Field>
-          <Field label="Dataset Metadata URI">
-            <input
-              value={datasetForm.metadataUri}
-              onChange={(event) => setDatasetForm((current) => ({ ...current, metadataUri: event.target.value }))}
-              placeholder="ipfs://dataset-version"
-            />
-          </Field>
-          <Field label="Dataset Metadata Hash">
-            <input
-              value={datasetForm.metadataHash}
-              onChange={(event) => setDatasetForm((current) => ({ ...current, metadataHash: event.target.value }))}
-              placeholder="0x..."
-            />
-          </Field>
-          <Field label="Immutable Reference" helper="Optional override.">
-            <input
-              value={datasetForm.immutableRef}
-              onChange={(event) => setDatasetForm((current) => ({ ...current, immutableRef: event.target.value }))}
-              placeholder="dataset-v1-cid"
-            />
-          </Field>
-          <div className="subsection">
-            <div className="subsection-header">
-              <div>
-                <p className="label">Dataset Entries</p>
-                <p className="helper-copy">Reference existing tasks or corrections in order.</p>
-              </div>
-              <button
-                type="button"
-                className="button button-secondary"
-                onClick={() =>
-                  setDatasetForm((current) => ({
-                    ...current,
-                    entries: [...current.entries, createDatasetEntryDraft()]
-                  }))
-                }
-              >
-                Add Entry
-              </button>
-            </div>
-            <div className="stack">
-              {datasetForm.entries.map((entry, index) => (
-                <div className="entry-card" key={entry.id}>
-                  <div className="entry-topline">
-                    <strong>Entry {index + 1}</strong>
-                    {datasetForm.entries.length > 1 ? (
-                      <button
-                        type="button"
-                        className="link-button"
-                        onClick={() =>
-                          setDatasetForm((current) => ({
-                            ...current,
-                            entries: current.entries.filter((candidate) => candidate.id !== entry.id)
-                          }))
-                        }
-                      >
-                        Remove
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="entry-grid">
-                    <label className="field">
-                      <span>Source Type</span>
-                      <select
-                        value={entry.sourceType}
-                        onChange={(event) =>
-                          updateDatasetEntry(entry.id, {
-                            sourceType: event.target.value as "TASK" | "CORRECTION",
-                            referenceId: ""
-                          })
-                        }
-                      >
-                        <option value="TASK">Task</option>
-                        <option value="CORRECTION">Correction</option>
-                      </select>
-                    </label>
-                    <label className="field">
-                      <span>{entry.sourceType === "TASK" ? "Task ID" : "Correction ID"}</span>
-                      <input
-                        value={entry.referenceId}
-                        onChange={(event) => updateDatasetEntry(entry.id, { referenceId: event.target.value })}
-                        placeholder={entry.sourceType === "TASK" ? "0x..." : "1"}
-                      />
-                    </label>
-                    <label className="field">
-                      <span>Entry Metadata URI</span>
-                      <input
-                        value={entry.metadataUri}
-                        onChange={(event) => updateDatasetEntry(entry.id, { metadataUri: event.target.value })}
-                        placeholder="Optional override"
-                      />
-                    </label>
-                    <label className="field">
-                      <span>Entry Metadata Hash</span>
-                      <input
-                        value={entry.metadataHash}
-                        onChange={(event) => updateDatasetEntry(entry.id, { metadataHash: event.target.value })}
-                        placeholder="Optional override"
-                      />
-                    </label>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <button className="button button-primary" type="submit" disabled={isRegisteringDataset}>
-            {isRegisteringDataset ? "Registering..." : "Register Dataset Version"}
-          </button>
-        </form>
-      </Panel>
-    ) : activeDatasetSection === "history" ? (
-      <Panel title="Dataset History" eyebrow="Read Flow">
-        {datasetViewerNotice ? <StatusNotice tone={datasetViewerNotice.tone} message={datasetViewerNotice.message} /> : null}
-        <div className="stack">
-          <div className="field-row">
-            <input
-              value={datasetLookupId}
-              onChange={(event) => setDatasetLookupId(event.target.value)}
-              placeholder="Enter dataset ID to inspect"
-            />
-            <button
-              className="button button-primary"
-              type="button"
-              onClick={() => datasetLookupId.trim().length > 0 && void loadDatasetHistoryView(datasetLookupId.trim())}
-              disabled={isLoadingDatasetHistory}
-            >
-              {isLoadingDatasetHistory ? "Loading..." : "Load History"}
-            </button>
-          </div>
-          <RecentIdList
-            title="Recent Datasets"
-            ids={recentDatasetIds}
-            onSelect={(value) => {
-              setDatasetLookupId(value);
-              void loadDatasetHistoryView(value);
-            }}
-          />
-          {isLoadingDatasetHistory && datasetHistory === null ? (
-            <LoadingState message="Loading version history..." />
-          ) : datasetHistory ? (
-            renderDatasetHistory(datasetHistory, currentDatasetHistory)
-          ) : (
-            <EmptyState message="Load dataset history to review version progression." />
-          )}
-        </div>
-      </Panel>
-    ) : activeDatasetSection === "session" ? (
-      sessionPanel
-    ) : (
-      <Panel title="Latest Dataset Version" eyebrow="Read Flow">
-        {datasetViewerNotice ? <StatusNotice tone={datasetViewerNotice.tone} message={datasetViewerNotice.message} /> : null}
-        <div className="stack">
-          <div className="field-row">
-            <input
-              value={datasetLookupId}
-              onChange={(event) => setDatasetLookupId(event.target.value)}
-              placeholder="Enter dataset ID to inspect"
-            />
-            <button
-              className="button button-primary"
-              type="button"
-              onClick={() => datasetLookupId.trim().length > 0 && void loadLatestDatasetView(datasetLookupId.trim())}
-              disabled={isLoadingLatestDataset}
-            >
-              {isLoadingLatestDataset ? "Loading..." : "Load Latest"}
-            </button>
-          </div>
-          <RecentIdList
-            title="Recent Datasets"
-            ids={recentDatasetIds}
-            onSelect={(value) => {
-              setDatasetLookupId(value);
-              void loadLatestDatasetView(value);
-            }}
-          />
-          {isLoadingLatestDataset && latestDatasetVersion === null ? (
-            <LoadingState message="Resolving the latest dataset version..." />
-          ) : latestVersion && latestDatasetVersion ? (
-            renderLatestDataset(latestDatasetVersion)
-          ) : (
-            <EmptyState message="Load the latest dataset version to inspect its canonical entry set." />
-          )}
-        </div>
-      </Panel>
-    );
-
-  const agentSectionPanel =
-    activeAgentSection === "marketplace" ? (
-      <div className="agent-grid">
-        <Panel
-          title="Artifact Marketplace"
-          eyebrow="Browse"
-          action={
-            selectedMarketplaceArtifact ? (
-              <button
-                type="button"
-                className="button button-secondary"
-                onClick={() => void addArtifactToLibrary(selectedMarketplaceArtifact.id)}
-              >
-                Add Selected
-              </button>
-            ) : null
-          }
-        >
-          {agentNotice ? <StatusNotice tone={agentNotice.tone} message={agentNotice.message} /> : null}
-          <div className="artifact-list">
-            {allAgentArtifacts.map((artifact) => {
-              const inLibrary = agentLibraryIds.includes(artifact.id);
-              return (
-                <button
-                  className={`artifact-card ${selectedMarketplaceArtifactId === artifact.id ? "artifact-card-active" : ""}`}
-                  key={artifact.id}
-                  type="button"
-                  onClick={() => setSelectedMarketplaceArtifactId(artifact.id)}
-                >
-                  <span className="artifact-card-topline">
-                    <span className="label">{artifact.source === "upload" ? "Uploaded" : artifact.difficulty}</span>
-                    <span className={`library-badge ${inLibrary ? "library-badge-on" : ""}`}>
-                      {inLibrary ? "In Library" : "Marketplace"}
-                    </span>
-                  </span>
-                  <strong>{artifact.title}</strong>
-                  <span className="helper-copy">{artifact.formulaPattern || artifact.answer}</span>
-                </button>
-              );
-            })}
-          </div>
-        </Panel>
-
-        <Panel
-          title={selectedMarketplaceArtifact?.title ?? "Artifact Detail"}
-          eyebrow="Selection"
-          action={
-            selectedMarketplaceArtifact ? (
-              <button
-                type="button"
-                className="button button-primary"
-                onClick={() => useArtifactWithAgent(selectedMarketplaceArtifact)}
-              >
-                Use with Agent
-              </button>
-            ) : null
-          }
-        >
-          {selectedMarketplaceArtifact ? (
-            <ArtifactDetail artifact={selectedMarketplaceArtifact} />
-          ) : (
-            <EmptyState message="Select an artifact to inspect it." />
-          )}
-        </Panel>
-      </div>
-    ) : activeAgentSection === "library" ? (
+  const artifactWorkspacePanel =
+    activeArtifactSection === "library" ? (
       <Panel
         title="Artifact Library"
-        eyebrow="Context"
+        eyebrow="Installed Files"
         action={
-          <button type="button" className="button button-secondary" onClick={() => setActiveAgentSection("marketplace")}>
+          <button type="button" className="button button-secondary" onClick={() => setActiveArtifactSection("marketplace")}>
             Browse Marketplace
           </button>
         }
       >
         {agentNotice ? <StatusNotice tone={agentNotice.tone} message={agentNotice.message} /> : null}
-        {agentLibraryArtifacts.length === 0 ? (
-          <EmptyState message="No artifacts are available in this library." />
+        {libraryArtifacts.length === 0 ? (
+          <EmptyState message="No artifact files are available in this library." />
         ) : (
           <div className="artifact-library-grid">
-            {agentLibraryArtifacts.map((artifact) => (
+            {libraryArtifacts.map((artifact) => (
               <div className="record-card artifact-library-card" key={artifact.id}>
-                <RecordHeader title={artifact.title} subtitle={artifact.source === "upload" ? "Uploaded artifact" : "Marketplace artifact"} />
+                <RecordHeader title={artifactFileName(artifact)} subtitle={artifact.title} />
                 <ArtifactDetail artifact={artifact} compact />
                 <div className="inline-actions">
                   <button type="button" className="button button-primary" onClick={() => useArtifactWithAgent(artifact)}>
@@ -1924,7 +719,7 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
           </div>
         )}
       </Panel>
-    ) : activeAgentSection === "upload" ? (
+    ) : activeArtifactSection === "upload" ? (
       <Panel title="Upload Artifact" eyebrow="Library">
         {agentNotice ? <StatusNotice tone={agentNotice.tone} message={agentNotice.message} /> : null}
         <form className="stack" onSubmit={handleUploadArtifact}>
@@ -1977,107 +772,186 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
       </Panel>
     ) : (
       <div className="agent-grid">
-        <section className="panel agent-chat-panel">
-          <div className="agent-chat-heading">
-            <h2>Ask Excel Agent</h2>
-            <p>Type a command or ask a question</p>
+        <Panel
+          title="Artifact Marketplace"
+          eyebrow="Browse"
+          action={
+            selectedMarketplaceArtifact ? (
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => void addArtifactToLibrary(selectedMarketplaceArtifact.id)}
+              >
+                Add Selected
+              </button>
+            ) : null
+          }
+        >
+          {agentNotice ? <StatusNotice tone={agentNotice.tone} message={agentNotice.message} /> : null}
+          {isLoadingAgentWorkspace ? <LoadingState message="Loading artifact files..." /> : null}
+          <div className="artifact-list">
+            {marketplaceArtifacts.map((artifact) => {
+              const inLibrary = libraryIds.includes(artifact.id);
+              return (
+                <button
+                  className={`artifact-card ${selectedMarketplaceArtifactId === artifact.id ? "artifact-card-active" : ""}`}
+                  key={artifact.id}
+                  type="button"
+                  onClick={() => setSelectedMarketplaceArtifactId(artifact.id)}
+                >
+                  <span className="artifact-card-topline">
+                    <span className="label">Artifact file</span>
+                    <span className={`library-badge ${inLibrary ? "library-badge-on" : ""}`}>
+                      {inLibrary ? "In Library" : "Marketplace"}
+                    </span>
+                  </span>
+                  <strong className="mono-text">{artifactFileName(artifact)}</strong>
+                  <span className="helper-copy">{artifact.title}</span>
+                </button>
+              );
+            })}
           </div>
+        </Panel>
 
-          <form className="zap-chatbox" onSubmit={handleAgentQuestionSubmit}>
-            <textarea
-              className="zap-chatbox-textarea"
-              value={agentQuestion}
-              onChange={(event) => setAgentQuestion(event.target.value)}
-              placeholder="Ask zap a question..."
-            />
-
-            <div className="zap-chatbox-toolbar">
-              <div className="zap-chatbox-left-actions">
-                <button className="zap-icon-button" type="button" aria-label="Attach file" title="Attach file">
-                  <span aria-hidden="true">+</span>
-                </button>
-
-                <div className="zap-command-menu">
-                  <button className="zap-icon-button" type="button" aria-label="Quick commands" title="Commands">
-                    <span aria-hidden="true">+</span>
-                  </button>
-                  <div className="zap-command-list">
-                    {marketplaceArtifacts.slice(0, 4).map((artifact) => (
-                      <button
-                        type="button"
-                        key={artifact.id}
-                        onClick={() => setAgentQuestion(artifact.questionPattern)}
-                      >
-                        {artifact.title}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="zap-chatbox-right-actions">
-                <div className="zap-mode-selector" role="tablist" aria-label="Agent answer mode">
-                  <button
-                    type="button"
-                    className={agentAnswerMode === "raw" ? "zap-mode-active" : ""}
-                    onClick={() => setAgentAnswerMode("raw")}
-                  >
-                    Raw LLM
-                  </button>
-                  <button
-                    type="button"
-                    className={agentAnswerMode === "artifact" ? "zap-mode-active" : ""}
-                    onClick={() => setAgentAnswerMode("artifact")}
-                  >
-                    With Artifacts
-                  </button>
-                </div>
-
-                <button className="zap-run-button" type="submit" disabled={isRunningAgent}>
-                  {isRunningAgent ? "Running..." : "Run Comparison"}
-                </button>
-                <button className="zap-send-button" type="submit" disabled={isRunningAgent}>
-                  <span aria-hidden="true">-&gt;</span>
-                  <span>Send</span>
-                </button>
-              </div>
-            </div>
-          </form>
-
-          {agentNotice ? (
-            <div className={`zap-status-pill zap-status-${agentNotice.tone}`} role="status">
-              <span aria-hidden="true" />
-              <p>{agentNotice.message}</p>
-            </div>
-          ) : null}
-        </section>
-
-        <div className="agent-selected-output">
-          <Panel
-            title={activeAgentAnswer.label}
-            eyebrow="Selected Output"
-            action={
-              activeAgentAnswer.artifactIds.length > 0 ? (
-                <button type="button" className="button button-secondary" onClick={() => setActiveAgentSection("library")}>
-                  View Library
-                </button>
-              ) : (
-                <button type="button" className="button button-secondary" onClick={() => setActiveAgentSection("marketplace")}>
-                  Add Artifact
-                </button>
-              )
-            }
-          >
-            <AgentAnswerCard answer={activeAgentAnswer} featured />
-          </Panel>
-        </div>
-
-        <div className="answer-comparison-grid">
-          <AgentAnswerCard answer={agentComparison.raw} />
-          <AgentAnswerCard answer={agentComparison.augmented} />
-        </div>
+        <Panel
+          title={selectedMarketplaceArtifact ? artifactFileName(selectedMarketplaceArtifact) : "Artifact File"}
+          eyebrow="Selection"
+          action={
+            selectedMarketplaceArtifact ? (
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={() => useArtifactWithAgent(selectedMarketplaceArtifact)}
+              >
+                Use with Agent
+              </button>
+            ) : null
+          }
+        >
+          {selectedMarketplaceArtifact ? (
+            <ArtifactDetail artifact={selectedMarketplaceArtifact} />
+          ) : (
+            <EmptyState message="Select an artifact file to inspect it." />
+          )}
+        </Panel>
       </div>
     );
+
+  const agentWorkspacePanel = (
+    <div className="agent-grid">
+      <section className="panel agent-chat-panel">
+        <div className="agent-chat-heading">
+          <div>
+            <p className="panel-eyebrow">Ask</p>
+            <h2>Ask the Agent</h2>
+          </div>
+          <span className="library-badge library-badge-on">{libraryArtifacts.length} artifact file(s)</span>
+        </div>
+
+        <form className="agent-zap-composer" onSubmit={handleAgentQuestionSubmit}>
+          <div className="agent-composer-topline">
+            <span className="agent-composer-avatar">DL</span>
+            <span>Ask an Excel question</span>
+          </div>
+          <textarea
+            value={agentQuestion}
+            onChange={(event) => {
+              setAgentQuestion(event.target.value);
+              setBackendAgentComparison(null);
+            }}
+            placeholder="Ask how to solve an Excel formula problem..."
+          />
+          <div className="quick-question-grid">
+            {EXCEL_ARTIFACT_CASES.slice(0, 4).map((artifactCase) => (
+              <button
+                className="quick-question-chip"
+                key={artifactCase.id}
+                type="button"
+                onClick={() => {
+                  setAgentQuestion(artifactCase.questionPattern);
+                  setBackendAgentComparison(null);
+                }}
+              >
+                {artifactCase.title}
+              </button>
+            ))}
+          </div>
+          <div className="agent-composer-footer">
+            <div className="agent-option-bar" role="tablist" aria-label="Answer mode">
+              <button
+                type="button"
+                className={agentAnswerMode === "raw" ? "zap-mode-active" : ""}
+                onClick={() => setAgentAnswerMode("raw")}
+              >
+                Raw LLM
+              </button>
+              <button
+                type="button"
+                className={agentAnswerMode === "artifact" ? "zap-mode-active" : ""}
+                onClick={() => setAgentAnswerMode("artifact")}
+              >
+                With Artifacts
+              </button>
+            </div>
+            <div className="agent-run-actions">
+              <button className="zap-run-button" type="submit" disabled={isRunningAgent}>
+                {isRunningAgent ? "Running..." : "Run Comparison"}
+              </button>
+              <button className="zap-send-button" type="submit" disabled={isRunningAgent}>
+                <span>Send</span>
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {agentNotice ? (
+          <div className={`zap-status-pill zap-status-${agentNotice.tone}`} role="status">
+            <span aria-hidden="true" />
+            <p>{agentNotice.message}</p>
+          </div>
+        ) : null}
+      </section>
+
+      <div className="agent-selected-output">
+        <Panel
+          title={activeAgentAnswer.label}
+          eyebrow="Selected Output"
+          action={
+            activeAgentAnswer.artifactIds.length > 0 ? (
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => {
+                  setActiveWorkspace("artifacts");
+                  setActiveArtifactSection("library");
+                }}
+              >
+                View Library
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => {
+                  setActiveWorkspace("artifacts");
+                  setActiveArtifactSection("marketplace");
+                }}
+              >
+                Add Artifact
+              </button>
+            )
+          }
+        >
+          <AgentAnswerCard answer={activeAgentAnswer} featured />
+        </Panel>
+      </div>
+
+      <div className="answer-comparison-grid">
+        <AgentAnswerCard answer={agentComparison.raw} />
+        <AgentAnswerCard answer={agentComparison.augmented} />
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -2088,7 +962,7 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
               <span aria-hidden="true">&lt;</span>
             </button>
 
-            <WorkspaceToggle activeWorkspace={activeWorkspace} onChange={setActiveWorkspace} />
+            <WorkspaceToggle activeWorkspace={activeWorkspace} onChange={handleWorkspaceChange} />
 
             <div className="brand-lockup">
               <strong className="app-wordmark">DataLoop</strong>
@@ -2129,12 +1003,11 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
               </div>
             </div>
 
-            <div className="account-pill">
-              <span className="micro-label">Wallet</span>
-              <strong className="mono-text">{connectedStateLabel}</strong>
-            </div>
+            <span className="wallet-address-pill">{connectedStateLabel}</span>
 
-            <div className="wallet-connect">
+            {walletNotice ? <span className={`topbar-notice topbar-notice-${walletNotice.tone}`}>{walletNotice.message}</span> : null}
+
+            <div className="wallet-menu-wrap">
               {hasWalletConnection ? (
                 <button
                   type="button"
@@ -2150,6 +1023,7 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
                     className="button button-primary topbar-button wallet-connect-trigger"
                     disabled={isConnectingWallet}
                     aria-haspopup="menu"
+                    onClick={connectFirstAvailableWallet}
                   >
                     {isConnectingWallet ? "Connecting..." : "Connect"}
                   </button>
@@ -2179,54 +1053,6 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
       </header>
 
       <main className="app-shell">
-        <section className="hero-shell">
-          <div className="hero-copy-block">
-            <p className="eyebrow">Minimal Glass Workspace</p>
-            <h1>Curate tasks and datasets through a calmer control surface.</h1>
-            <p className="copy">
-              Create task records, attach corrections, register dataset versions, and inspect canonical state
-              through a single glassmorphism workspace tuned for the Week 1 API and contract flow.
-            </p>
-
-            <div className="hero-actions">
-              <button
-                type="button"
-                className="button button-primary"
-                onClick={() => setActiveWorkspace(getNextWorkspace(activeWorkspace))}
-              >
-                Open {workspaceLabel(getNextWorkspace(activeWorkspace))} Workspace
-              </button>
-              <button
-                type="button"
-                className="button button-tertiary"
-                onClick={() => {
-                  if (activeWorkspace === "tasks" && activeTaskSection === "details" && taskLookupId.trim().length > 0) {
-                    void loadTaskDetail(taskLookupId.trim());
-                  }
-                  if (activeWorkspace === "datasets" && activeDatasetSection === "latest" && datasetLookupId.trim().length > 0) {
-                    void loadLatestDatasetView(datasetLookupId.trim());
-                  }
-                  if (activeWorkspace === "datasets" && activeDatasetSection === "history" && datasetLookupId.trim().length > 0) {
-                    void loadDatasetHistoryView(datasetLookupId.trim());
-                  }
-                }}
-              >
-                Refresh Active Explorer
-              </button>
-            </div>
-          </div>
-
-          <div className="hero-meta">
-            <MetricCard label="API Endpoint" value={getApiBaseUrl()} mono />
-            <div className="hero-stat-grid">
-              <MetricCard label="Configured Chain" value={`${walletConfig.chainName} (${walletConfig.chainId})`} />
-              <MetricCard label="Recent Tasks" value={String(recentTaskIds.length)} />
-              <MetricCard label="Recent Datasets" value={String(recentDatasetIds.length)} />
-              <MetricCard label="Latest Dataset" value={latestDatasetLabel} />
-            </div>
-          </div>
-        </section>
-
         {chainMismatch ? (
           <section className="network-banner">
             <div>
@@ -2234,7 +1060,7 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
               <h2>Switch to {walletConfig.chainName} before writing on-chain state.</h2>
               <p className="section-copy">
                 The connected wallet is currently on chain {walletChainId ?? "unknown"}. Align it with the configured
-                demo network to keep task, correction, and dataset transactions consistent.
+                demo network to keep artifact storage and agent runs consistent.
               </p>
             </div>
             <button type="button" className="button button-secondary" onClick={handleSwitchNetwork}>
@@ -2243,7 +1069,6 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
           </section>
         ) : null}
 
-        {activeWorkspace === "tasks" ? taskWorkspaceBlock : (
         <section className="workspace-shell">
           <div className="workspace-heading">
             <div>
@@ -2252,50 +1077,27 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
               <p className="section-copy">{workspaceCopy}</p>
             </div>
             <div className="workspace-summary">
-              <MetricCard label="Session" value={walletStatusLabel} />
-              {activeWorkspace === "agent" ? (
-                <MetricCard label="Library Artifacts" value={String(agentLibraryArtifacts.length)} />
-              ) : (
-                <MetricCard label="Corrections Loaded" value={String(selectedCorrections.length)} />
-              )}
+              <MetricCard label="Session" value={hasWalletConnection ? "Connected" : "Wallet offline"} />
+              <MetricCard label="Library Artifacts" value={String(libraryArtifacts.length)} />
             </div>
           </div>
 
           <div className="workspace-content">
-            {activeWorkspace === "tasks" ? (
+            {activeWorkspace === "artifacts" ? (
               <>
                 <WorkspaceSectionNav
-                  title="Task Sections"
-                  items={taskSectionItems}
-                  activeKey={activeTaskSection}
-                  onChange={setActiveTaskSection}
+                  title="Artifact Sections"
+                  items={artifactSectionItems}
+                  activeKey={activeArtifactSection}
+                  onChange={setActiveArtifactSection}
                 />
-                {taskSectionPanel}
-              </>
-            ) : activeWorkspace === "datasets" ? (
-              <>
-                <WorkspaceSectionNav
-                  title="Dataset Sections"
-                  items={datasetSectionItems}
-                  activeKey={activeDatasetSection}
-                  onChange={setActiveDatasetSection}
-                />
-                {datasetSectionPanel}
+                {artifactWorkspacePanel}
               </>
             ) : (
-              <>
-                <WorkspaceSectionNav
-                  title="Agent Sections"
-                  items={agentSectionItems}
-                  activeKey={activeAgentSection}
-                  onChange={setActiveAgentSection}
-                />
-                {agentSectionPanel}
-              </>
+              agentWorkspacePanel
             )}
           </div>
         </section>
-        )}
       </main>
     </>
   );
@@ -2345,47 +1147,27 @@ function WorkspaceToggle({
   const [isOpen, setIsOpen] = useState(false);
   const dragX = useMotionValue(-340);
   const dragOpacity = useTransform(dragX, [-200, 0], [0, 1]);
-  const items: Array<{ key: WorkspaceKey; label: string; icon: typeof Home }> = [
-    { key: "tasks", label: "Tasks", icon: Home },
-    { key: "datasets", label: "Datasets", icon: Briefcase },
-    { key: "agent", label: "Agent", icon: User }
+  const items: Array<{ key: WorkspaceKey; label: string; icon: typeof User }> = [
+    { key: "agent", label: "Agent", icon: User },
+    { key: "artifacts", label: "Artifacts", icon: Archive }
   ];
 
-  function handleDragEnd(_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) {
-    if (info.offset.x < -100) {
-      setIsOpen(false);
-      return;
-    }
-
-    void animate(dragX, 0, menuVariants.open.transition);
-  }
-
-  function handleSelectWorkspace(workspace: WorkspaceKey) {
-    onChange(workspace);
-    setIsOpen(false);
-  }
-
+  const menuTransition = {
+    type: "spring",
+    stiffness: 200,
+    damping: 30,
+    mass: 0.8
+  } as const;
   const menuVariants = {
     closed: {
       x: "-100%",
-      transition: {
-        type: "spring",
-        stiffness: 200,
-        damping: 30,
-        mass: 0.8
-      }
+      transition: menuTransition
     },
     open: {
       x: 0,
-      transition: {
-        type: "spring",
-        stiffness: 200,
-        damping: 30,
-        mass: 0.8
-      }
+      transition: menuTransition
     }
   };
-
   const itemVariants = {
     closed: { x: -50, opacity: 0 },
     open: (index: number) => ({
@@ -2396,10 +1178,9 @@ function WorkspaceToggle({
         type: "spring",
         stiffness: 250,
         damping: 25
-      }
+      } as const
     })
   };
-
   const overlayVariants = {
     closed: {
       opacity: 0,
@@ -2415,74 +1196,90 @@ function WorkspaceToggle({
     }
   };
 
+  function handleDragEnd(_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) {
+    if (info.offset.x < -100) {
+      setIsOpen(false);
+      return;
+    }
+
+    void animate(dragX, 0, menuTransition);
+  }
+
+  function handleSelectWorkspace(workspace: WorkspaceKey) {
+    onChange(workspace);
+    setIsOpen(false);
+  }
+
   useEffect(() => {
-    const controls = animate(dragX, isOpen ? 0 : -340, isOpen ? menuVariants.open.transition : menuVariants.closed.transition);
+    const controls = animate(dragX, isOpen ? 0 : -340, menuTransition);
 
     return () => controls.stop();
-  }, [dragX, isOpen]);
+  }, [dragX, isOpen, menuTransition]);
 
   return (
     <div className="workspace-menu" role="tablist" aria-label="Workspace switcher">
       <motion.button
-        whileHover={{ scale: 1.08 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setIsOpen((current) => !current)}
-        className="workspace-menu-button"
         type="button"
+        className="workspace-menu-button"
+        onClick={() => setIsOpen((current) => !current)}
         aria-label={isOpen ? "Close workspace menu" : "Open workspace menu"}
         aria-expanded={isOpen}
+        whileTap={{ scale: 0.94 }}
       >
-        {isOpen ? <X size={20} /> : <Menu size={20} />}
+        <Menu size={20} />
       </motion.button>
 
       <AnimatePresence>
         {isOpen ? (
-          <motion.div
-            variants={overlayVariants}
+          <motion.button
+            type="button"
+            className="workspace-menu-overlay"
+            onClick={() => setIsOpen(false)}
+            aria-label="Close workspace menu overlay"
             initial="closed"
             animate="open"
             exit="closed"
-            onClick={() => setIsOpen(false)}
-            className="workspace-menu-overlay"
+            variants={overlayVariants}
           />
         ) : null}
       </AnimatePresence>
 
-      <motion.nav
-        drag="x"
-        dragConstraints={{ left: -320, right: 0 }}
-        dragElastic={0.2}
-        onDragEnd={handleDragEnd}
-        style={{ x: dragX }}
+      <motion.aside
         className="workspace-side-menu"
-        aria-label="Workspace menu"
+        aria-hidden={!isOpen}
+        style={{ x: dragX }}
+        initial="closed"
+        animate={isOpen ? "open" : "closed"}
+        variants={menuVariants}
+        drag="x"
+        dragConstraints={{ left: -340, right: 0 }}
+        dragElastic={0.08}
+        onDragEnd={handleDragEnd}
       >
-        <motion.button
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: isOpen ? 1 : 0, scale: isOpen ? 1 : 0.8 }}
-          transition={{ delay: 0.2 }}
-          whileHover={{ scale: 1.1, rotate: 90 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setIsOpen(false)}
-          className="workspace-menu-close"
+        <button
           type="button"
+          className="workspace-menu-close"
+          onClick={() => setIsOpen(false)}
           aria-label="Close workspace menu"
         >
-          <X size={22} />
-        </motion.button>
+          <X size={18} />
+        </button>
 
         <motion.div style={{ opacity: dragOpacity }} className="workspace-menu-drag-hint" aria-hidden="true">
-          <ChevronLeft size={30} />
+          <ChevronLeft size={18} />
         </motion.div>
 
         <div className="workspace-menu-content">
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: isOpen ? 1 : 0, y: isOpen ? 0 : -20 }}
-            transition={{ delay: 0.15, type: "spring", stiffness: 200 }}
             className="workspace-menu-heading"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: isOpen ? 1 : 0, y: isOpen ? 0 : 16 }}
+            transition={{ delay: 0.12, duration: 0.35 }}
           >
-            <h2>Navigation</h2>
+            <div>
+              <span className="label">Workspace</span>
+              <h2>DataLoop</h2>
+            </div>
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: isOpen ? 80 : 0 }}
@@ -2518,38 +1315,26 @@ function WorkspaceToggle({
           </ul>
 
           <motion.div
+            className="workspace-menu-footer"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: isOpen ? 1 : 0, y: isOpen ? 0 : 20 }}
-            transition={{ delay: 0.7, duration: 0.5 }}
-            className="workspace-menu-footer"
+            transition={{ delay: 0.36, duration: 0.35 }}
           >
-            <p>Drag left to close</p>
+            <FileText size={18} />
+            <p>Artifact files are the reusable knowledge layer for the agent.</p>
           </motion.div>
         </div>
-      </motion.nav>
+      </motion.aside>
     </div>
   );
 }
 
 function workspaceLabel(workspace: WorkspaceKey) {
   switch (workspace) {
-    case "tasks":
-      return "Task";
-    case "datasets":
-      return "Dataset";
     case "agent":
       return "Agent";
-  }
-}
-
-function getNextWorkspace(workspace: WorkspaceKey): WorkspaceKey {
-  switch (workspace) {
-    case "tasks":
-      return "datasets";
-    case "datasets":
-      return "agent";
-    case "agent":
-      return "tasks";
+    case "artifacts":
+      return "Artifacts";
   }
 }
 
@@ -2571,13 +1356,16 @@ function MetricCard({
 }
 
 function ArtifactDetail({ artifact, compact = false }: { artifact: DemoArtifact; compact?: boolean }) {
+  const fileBody = buildArtifactFileBody(artifact);
+
   return (
     <div className="artifact-detail">
       <div className="detail-grid compact-grid">
+        <Detail label="File" value={artifactFileName(artifact)} mono />
+        <Detail label="Size" value={formatArtifactFileSize(fileBody)} />
         <Detail label="Formula" value={artifact.formulaPattern || "No formula"} mono />
-        <Detail label="Concepts" value={artifact.concepts.join(", ") || "None"} />
-        {!compact ? <Detail label="Difficulty" value={artifact.difficulty} /> : null}
-        {!compact ? <Detail label="Source" value={artifact.source === "upload" ? "Uploaded" : "Marketplace"} /> : null}
+        {!compact ? <Detail label="Concepts" value={artifact.concepts.join(", ") || "None"} /> : null}
+        {!compact ? <Detail label="Source" value={artifact.source === "upload" ? "Uploaded file" : "Marketplace file"} /> : null}
         {artifact.storage ? <Detail label="Storage" value={`${artifact.storage.provider} ${artifact.storage.status}`} /> : null}
         {artifact.storage?.network ? <Detail label="Network" value={artifact.storage.network} /> : null}
         {artifact.storage?.rootHash ? <Detail label="Root Hash" value={shortId(artifact.storage.rootHash)} mono /> : null}
@@ -2585,9 +1373,19 @@ function ArtifactDetail({ artifact, compact = false }: { artifact: DemoArtifact;
           <Detail label="Storage TX" value={shortId(artifact.storage.transactionHash)} mono />
         ) : null}
       </div>
-      <div className="artifact-answer-block">
-        <span className="label">Answer</span>
-        <p>{artifact.answer}</p>
+      <div className={`artifact-file-preview ${compact ? "artifact-file-preview-compact" : ""}`}>
+        <div className="artifact-file-bar">
+          <span className="artifact-file-icon">
+            <FileText size={16} />
+          </span>
+          <div>
+            <strong className="mono-text">{artifactFileName(artifact)}</strong>
+            <span>{artifact.source === "upload" ? "Uploaded artifact file" : "Marketplace artifact file"}</span>
+          </div>
+        </div>
+        <pre className="artifact-file-body">
+          <code>{fileBody}</code>
+        </pre>
       </div>
     </div>
   );
@@ -2603,67 +1401,86 @@ function AgentAnswerCard({ answer, featured = false }: { answer: AgentAnswer; fe
         </div>
         <span className="confidence-pill">{Math.round(answer.confidence * 100)}%</span>
       </div>
+
       <div className="agent-answer-body">
-        {answer.formula ? (
-          <pre className="formula-block">
-            <code>{answer.formula}</code>
-          </pre>
-        ) : null}
+        <pre className="formula-block">
+          <code>{answer.formula || "No formula returned"}</code>
+        </pre>
         <p>{answer.explanation}</p>
       </div>
+
       <div className="agent-answer-footer">
         <span>{answer.artifactIds.length > 0 ? `${answer.artifactIds.length} artifact used` : "No artifact context"}</span>
         {answer.artifactIds.length > 0 ? <span className="mono-text">{shortId(answer.artifactIds[0] ?? "")}</span> : null}
       </div>
-      {answer.provider ? (
-        <div className="agent-answer-footer">
-          <span>{answer.provider.mode === "0g-compute" ? "0G Compute" : "Mock provider"}</span>
-          <span className="mono-text">{answer.provider.traceId ? shortId(answer.provider.traceId) : answer.provider.modelName}</span>
-        </div>
-      ) : null}
-      {answer.provider?.errorMessage ? (
-        <p className="helper-copy">Provider fallback: {answer.provider.errorMessage}</p>
-      ) : null}
+      {answer.provider ? <ProviderStatus provider={answer.provider} /> : null}
     </div>
   );
 }
 
-function createEmptyTaskForm(): TaskFormState {
-  return {
-    taskId: generateBytes32Hex(),
-    metadataUri: "",
-    metadataHash: "",
-    stakeAmountWei: ""
-  };
+function ProviderStatus({ provider }: { provider: AgentProviderStatus }) {
+  return (
+    <div className="provider-status">
+      <span>{provider.mode === "0g-compute" ? "0G Compute" : "Mock"}</span>
+      <span>{provider.modelName}</span>
+      {provider.traceId ? <span className="mono-text">{shortId(provider.traceId)}</span> : null}
+      {provider.errorMessage ? <span>{provider.errorMessage}</span> : null}
+    </div>
+  );
 }
 
-function createEmptyCorrectionForm(): CorrectionFormState {
-  return {
-    taskId: "",
-    metadataUri: "",
-    metadataHash: "",
-    stakeAmountWei: ""
-  };
+function Field({
+  label,
+  helper,
+  children
+}: {
+  label: string;
+  helper?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      {children}
+      {helper ? <small>{helper}</small> : null}
+    </label>
+  );
 }
 
-function createDatasetEntryDraft(): DatasetEntryDraft {
-  return {
-    id: `entry-${crypto.randomUUID()}`,
-    sourceType: "TASK",
-    referenceId: "",
-    metadataUri: "",
-    metadataHash: ""
-  };
+function Detail({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="detail">
+      <span>{label}</span>
+      <strong className={mono ? "mono-text" : undefined}>{value}</strong>
+    </div>
+  );
 }
 
-function createEmptyDatasetForm(): DatasetFormState {
-  return {
-    datasetId: "",
-    metadataUri: "",
-    metadataHash: "",
-    immutableRef: "",
-    entries: [createDatasetEntryDraft()]
-  };
+function RecordHeader({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div className="record-header">
+      <div>
+        <p className="label">{subtitle}</p>
+        <h3>{title}</h3>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="empty-state">
+      <p>{message}</p>
+    </div>
+  );
+}
+
+function LoadingState({ message }: { message: string }) {
+  return (
+    <div className="loading-state">
+      <p>{message}</p>
+    </div>
+  );
 }
 
 function createEmptyUploadArtifactForm(): UploadArtifactFormState {
@@ -2732,14 +1549,6 @@ function formatError(error: unknown) {
 
 function mapApiErrorMessage(error: ApiClientError) {
   switch (error.code) {
-    case "TASK_NOT_FOUND":
-      return "Task ID was not found. Create the task first, then submit corrections.";
-    case "INVALID_REQUEST":
-      return "Malformed request. Check address format, bytes32 IDs, and required fields.";
-    case "RELATED_RECORD_NOT_FOUND":
-      return "Storage reference is missing. Ensure referenced task and correction records exist.";
-    case "DATASET_NOT_FOUND":
-      return "Dataset ID was not found.";
     case "ARTIFACT_NOT_FOUND":
       return "Artifact was not found in the marketplace or upload set.";
     case "ARTIFACT_NOT_IN_LIBRARY":
@@ -2785,6 +1594,16 @@ function writeStoredIds(key: string, ids: string[]) {
   }
 }
 
+function normalizeLibraryIds(ids: string[]) {
+  const uploadIds = ids.filter((id) => id.startsWith("upload-"));
+  const hasDomainPack = ids.includes(DEFAULT_AGENT_ARTIFACT_ID);
+  const hasLegacyExcelArtifact = ids.some((id) => EXCEL_ARTIFACT_CASES.some((artifactCase) => artifactCase.id === id));
+
+  return hasDomainPack || hasLegacyExcelArtifact || ids.length === 0
+    ? [DEFAULT_AGENT_ARTIFACT_ID, ...uploadIds]
+    : uploadIds;
+}
+
 function readStoredArtifacts() {
   if (typeof window === "undefined") {
     return [];
@@ -2814,7 +1633,7 @@ function writeStoredArtifacts(artifacts: DemoArtifact[]) {
 }
 
 function isDemoArtifact(value: unknown): value is DemoArtifact {
-  if (typeof value !== "object" || value === null) {
+  if (value === null || typeof value !== "object") {
     return false;
   }
 
@@ -2856,10 +1675,12 @@ function buildAgentComparison(
 ): AgentComparison {
   const marketplaceMatch = findBestArtifact(question, marketplaceArtifacts);
   const libraryMatch = findBestArtifact(question, libraryArtifacts);
+  const excelCase = findBestExcelArtifactCase(question);
   const raw: AgentAnswer = {
     label: "Raw LLM",
-    formula: marketplaceMatch?.rawFormula ?? "",
+    formula: excelCase?.rawFormula ?? marketplaceMatch?.rawFormula ?? "",
     explanation:
+      excelCase?.rawAnswer ??
       marketplaceMatch?.rawAnswer ??
       "The raw model gives a general Excel answer, but no curated artifact is available for this exact pattern.",
     confidence: marketplaceMatch ? 0.74 : 0.58,
@@ -2869,8 +1690,8 @@ function buildAgentComparison(
   const augmented: AgentAnswer = libraryMatch
     ? {
         label: "With Artifacts",
-        formula: libraryMatch.formulaPattern,
-        explanation: libraryMatch.answer,
+        formula: libraryMatch.id === DEFAULT_AGENT_ARTIFACT_ID ? excelCase?.formulaPattern ?? "" : libraryMatch.formulaPattern,
+        explanation: libraryMatch.id === DEFAULT_AGENT_ARTIFACT_ID ? excelCase?.answer ?? libraryMatch.answer : libraryMatch.answer,
         confidence: 0.93,
         artifactIds: [libraryMatch.id],
         matchedArtifactTitle: libraryMatch.title
@@ -2885,6 +1706,90 @@ function buildAgentComparison(
       };
 
   return { raw, augmented };
+}
+
+const excelSearchPatterns: Array<{ term: string; pattern: RegExp }> = [
+  { term: "sumifs", pattern: /\b(?:sumifs|sum\s+if|sum\s+with|sum\s+where|sum\s+sales|total\s+sales|multiple\s+criteria|multi(?:ple)?\s+condition)/i },
+  { term: "sum", pattern: /\b(?:sum|total|add|aggregate)\b/i },
+  { term: "countifs", pattern: /\b(?:countifs|count\s+if|count\s+where|count\s+with)\b/i },
+  { term: "xlookup", pattern: /\b(?:xlookup|lookup|look\s+up|find|return|salary|employee|exact\s+match)\b/i },
+  { term: "vlookup", pattern: /\b(?:vlookup|column\s+index|left\s+lookup|right\s+lookup|avoid\s+vlookup)\b/i },
+  { term: "filter", pattern: /\b(?:filter|where|amounts?\s+over|greater\s+than|over\s+\d+)\b/i },
+  { term: "dynamic array", pattern: /\b(?:dynamic\s+array|spill|spilled|spill\s+range)\b/i },
+  { term: "absolute reference", pattern: /(?:\$[a-z]{0,3}\$?\d+|[a-z]{1,3}\$\d+|\babsolute\b|\block\b|\bfixed\b|\bcopy(?:ied)?\b|\bdollar\b)/i },
+  { term: "date criteria", pattern: /\b(?:date|after|before|since|between|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|20\d{2})\b/i },
+  { term: "text numbers", pattern: /\b(?:text[-\s]?formatted|text\s+numbers?|stored\s+as\s+text|sum\s+is\s+0|sum\s+returns\s+0)\b/i },
+  { term: "value", pattern: /\b(?:value|convert\s+to\s+number|number\s+conversion)\b/i },
+  { term: "range", pattern: /\b[a-z]{1,3}\d*:[a-z]{1,3}\d*\b/i },
+  { term: "criteria operator", pattern: /(?:>=|<=|<>|>|<|=)/ }
+];
+
+function findBestExcelArtifactCase(question: string) {
+  const queryTokens = tokenizeAgentText(question);
+  const searchTerms = extractExcelSearchTerms(question);
+  let bestCase: (typeof EXCEL_ARTIFACT_CASES)[number] | null = null;
+  let bestScore = 0;
+
+  for (const artifactCase of EXCEL_ARTIFACT_CASES) {
+    const score = scoreExcelArtifactCase(queryTokens, searchTerms, artifactCase);
+
+    if (score > bestScore) {
+      bestCase = artifactCase;
+      bestScore = score;
+    }
+  }
+
+  return bestScore >= 3 ? bestCase : null;
+}
+
+function scoreExcelArtifactCase(
+  queryTokens: Set<string>,
+  querySearchTerms: Set<string>,
+  artifactCase: (typeof EXCEL_ARTIFACT_CASES)[number]
+) {
+  const candidateText = [
+    artifactCase.title,
+    artifactCase.questionPattern,
+    artifactCase.formulaPattern,
+    artifactCase.concepts.join(" "),
+    artifactCase.tags.join(" "),
+    artifactCase.answer
+  ].join(" ");
+  const candidateTokens = tokenizeAgentText(candidateText);
+  const candidateSearchTerms = extractExcelSearchTerms(candidateText);
+  let score = countAgentTokenOverlap(queryTokens, candidateTokens);
+
+  for (const term of querySearchTerms) {
+    if (candidateSearchTerms.has(term)) {
+      score += 5;
+    }
+  }
+
+  const normalizedCandidateText = candidateText.toLowerCase();
+  for (const token of queryTokens) {
+    if (normalizedCandidateText.includes(token)) {
+      score += 1;
+    }
+  }
+
+  return score;
+}
+
+function extractExcelSearchTerms(value: string) {
+  const terms = new Set<string>();
+
+  for (const { term, pattern } of excelSearchPatterns) {
+    if (pattern.test(value)) {
+      terms.add(term);
+    }
+  }
+
+  const functionMatches = value.match(/\b[A-Z][A-Z0-9.]{2,}\s*\(/gi) ?? [];
+  for (const match of functionMatches) {
+    terms.add(match.replace(/\s*\($/, "").toLowerCase());
+  }
+
+  return terms;
 }
 
 function findBestArtifact(question: string, artifacts: DemoArtifact[]) {
@@ -2928,299 +1833,108 @@ function countAgentTokenOverlap(queryTokens: Set<string>, candidateTokens: Set<s
   return score;
 }
 
-function validateTaskForm(form: TaskFormState) {
-  if (!isBytes32(form.taskId)) {
-    return "Task ID must be a valid bytes32 hex string.";
+function artifactFileName(artifact: DemoArtifact) {
+  if (artifact.id === DEFAULT_AGENT_ARTIFACT_ID) {
+    return "excel.md";
   }
 
-  if (!hasMetadataReference(form.metadataUri, form.metadataHash)) {
-    return "Provide either a metadata URI or metadata hash.";
+  return `${artifact.id}.artifact.md`;
+}
+
+function formatArtifactFileSize(content: string) {
+  const bytes = content.length;
+
+  if (bytes < 1024) {
+    return `${bytes} B`;
   }
 
-  if (form.metadataHash.trim().length > 0 && !isBytes32(form.metadataHash)) {
-    return "Task metadata hash must be a bytes32 hex string.";
-  }
-
-  if (form.stakeAmountWei.trim().length > 0 && !isUintString(form.stakeAmountWei)) {
-    return "Stake amount must be a whole-number wei string.";
-  }
-
-  return null;
+  return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
-function validateCorrectionForm(form: CorrectionFormState) {
-  if (!isBytes32(form.taskId)) {
-    return "Correction task ID must be a valid bytes32 hex string.";
-  }
+function buildArtifactFileBody(artifact: DemoArtifact) {
+  const artifactContent =
+    artifact.id === DEFAULT_AGENT_ARTIFACT_ID
+      ? artifact.answer
+      : [
+          `# ${artifact.title}`,
+          "",
+          "## Match Pattern",
+          artifact.questionPattern,
+          "",
+          "## Formula Pattern",
+          "```excel",
+          artifact.formulaPattern || "No formula pattern",
+          "```",
+          "",
+          "## Concepts",
+          artifact.concepts.length > 0 ? artifact.concepts.map((concept) => `- ${concept}`).join("\n") : "- None",
+          "",
+          "## Artifact Answer",
+          artifact.answer,
+          "",
+          "## Raw Baseline",
+          artifact.rawAnswer,
+          "",
+          "## Retrieval Notes",
+          "Use this file as the source of truth only when the user's question matches the pattern above."
+        ].join("\n");
+  const lines = [
+    "---",
+    `id: ${artifact.id}`,
+    `title: ${artifact.title}`,
+    "domain: excel",
+    `source: ${artifact.source}`,
+    `version: ${artifact.version ?? "local"}`,
+    `difficulty: ${artifact.difficulty}`,
+    `tags: ${artifact.tags.join(", ") || "none"}`,
+    `storage: ${artifact.storage ? `${artifact.storage.provider}:${artifact.storage.status}` : "local"}`,
+    artifact.storage?.rootHash ? `rootHash: ${artifact.storage.rootHash}` : null,
+    artifact.storage?.transactionHash ? `transactionHash: ${artifact.storage.transactionHash}` : null,
+    "---",
+    "",
+    artifactContent
+  ];
 
-  if (!hasMetadataReference(form.metadataUri, form.metadataHash)) {
-    return "Provide either a correction metadata URI or metadata hash.";
-  }
-
-  if (form.metadataHash.trim().length > 0 && !isBytes32(form.metadataHash)) {
-    return "Correction metadata hash must be a bytes32 hex string.";
-  }
-
-  if (form.stakeAmountWei.trim().length > 0 && !isUintString(form.stakeAmountWei)) {
-    return "Correction stake amount must be a whole-number wei string.";
-  }
-
-  return null;
+  return lines.filter((line): line is string => line !== null).join("\n");
 }
 
-function validateDatasetForm(form: DatasetFormState) {
-  if (!isBytes32(form.datasetId)) {
-    return "Dataset ID must be a valid bytes32 hex string.";
-  }
-
-  if (!hasMetadataReference(form.metadataUri, form.metadataHash)) {
-    return "Provide either a dataset metadata URI or metadata hash.";
-  }
-
-  if (form.metadataHash.trim().length > 0 && !isBytes32(form.metadataHash)) {
-    return "Dataset metadata hash must be a bytes32 hex string.";
-  }
-
-  if (form.entries.length === 0) {
-    return "Add at least one dataset entry.";
-  }
-
-  for (const [index, entry] of form.entries.entries()) {
-    if (entry.sourceType === "TASK" && !isBytes32(entry.referenceId)) {
-      return `Dataset entry ${index + 1} requires a valid task ID.`;
-    }
-
-    if (entry.sourceType === "CORRECTION" && !isUintString(entry.referenceId)) {
-      return `Dataset entry ${index + 1} requires a numeric correction ID.`;
-    }
-
-    if (entry.metadataHash.trim().length > 0 && !isBytes32(entry.metadataHash)) {
-      return `Dataset entry ${index + 1} metadata hash must be a bytes32 hex string.`;
-    }
-  }
-
-  return null;
+function buildExcelArtifactFileBody() {
+  return [
+    "# Excel Artifact Pack",
+    "",
+    "A single DataLoop artifact file containing reusable Excel question patterns, formulas, concepts, and answer guidance.",
+    "",
+    "## Questions",
+    "",
+    EXCEL_ARTIFACT_CASES.map(renderExcelArtifactCase).join("\n\n")
+  ].join("\n");
 }
 
-function optionalField<T extends string>(key: T, value: string) {
-  const normalized = value.trim();
-
-  if (normalized.length === 0) {
-    return {};
-  }
-
-  return {
-    [key]: normalized
-  } as Record<T, string>;
+function renderExcelArtifactCase(artifactCase: (typeof EXCEL_ARTIFACT_CASES)[number], index: number) {
+  return [
+    `### ${index + 1}. ${artifactCase.title}`,
+    "",
+    `Question: ${artifactCase.questionPattern}`,
+    "",
+    "Formula:",
+    "```excel",
+    artifactCase.formulaPattern || "No formula pattern",
+    "```",
+    "",
+    `Concepts: ${artifactCase.concepts.join(", ")}`,
+    "",
+    `Answer: ${artifactCase.answer}`,
+    "",
+    `Raw baseline: ${artifactCase.rawAnswer}`
+  ].join("\n");
 }
 
-function appendRecentId(setter: Dispatch<SetStateAction<string[]>>, id: string) {
-  setter((current) => [id, ...current.filter((candidate) => candidate !== id)].slice(0, 8));
+function optionalField(key: string, value: string) {
+  const trimmedValue = value.trim();
+
+  return trimmedValue.length > 0 ? { [key]: trimmedValue } : {};
 }
 
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString();
-}
-
-function renderSelectedTask(task: TaskResource, corrections: CorrectionResource[]) {
-  return (
-    <div className="record-card">
-      <RecordHeader title={task.taskId} subtitle="Task" />
-      <div className="detail-grid">
-        <Detail label="Storage ID" value={task.storageId} mono />
-        <Detail label="Creator" value={task.creatorAddress} mono />
-        <Detail label="Chain creator" value={task.chainCreatorAddress ?? "Not returned"} mono />
-        <Detail label="Created at" value={formatDateTime(task.createdAt)} />
-        <Detail label="Metadata URI" value={task.metadataUri ?? "Not set"} mono />
-        <Detail label="Metadata Hash" value={task.metadataHash ?? "Not set"} mono />
-        <Detail label="Transaction" value={task.chain.transactionHash ?? "Not set"} mono />
-        <Detail label="Block" value={task.chain.blockNumber ?? "Not set"} mono />
-      </div>
-
-      <div className="subsection">
-        <div className="subsection-header">
-          <div>
-            <p className="label">Corrections</p>
-            <p className="helper-copy">{corrections.length} correction(s) linked to this task.</p>
-          </div>
-        </div>
-        <div className="stack">
-          {corrections.length === 0 ? (
-            <EmptyState message="No corrections stored for this task yet." />
-          ) : (
-            corrections.map((correction) => (
-              <div className="nested-card" key={correction.storageId}>
-                <RecordHeader title={`#${correction.correctionId}`} subtitle={formatDateTime(correction.submittedAt)} />
-                <div className="detail-grid compact-grid">
-                  <Detail label="Submitter" value={correction.submitterAddress} mono />
-                  <Detail label="Metadata URI" value={correction.metadataUri ?? "Not set"} mono />
-                  <Detail label="Metadata Hash" value={correction.metadataHash ?? "Not set"} mono />
-                  <Detail label="Transaction" value={correction.chain.transactionHash ?? "Not set"} mono />
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function renderLatestDataset(version: LatestDatasetVersionResult) {
-  return (
-    <div className="record-card">
-      <RecordHeader title={`Latest Version v${version.version.versionNumber}`} subtitle={version.dataset.datasetId} />
-      <div className="detail-grid">
-        <Detail label="Storage ID" value={version.version.storageId} mono />
-        <Detail label="Registered by" value={version.version.registeredBy} mono />
-        <Detail label="Chain registrar" value={version.version.chainRegistrarAddress ?? "Not returned"} mono />
-        <Detail label="Registered at" value={formatDateTime(version.version.registeredAt)} />
-        <Detail label="Immutable ref" value={version.version.immutableRef} mono />
-        <Detail label="Transaction" value={version.version.chain.transactionHash ?? "Not set"} mono />
-      </div>
-      <DatasetEntries entries={version.version.entries} />
-    </div>
-  );
-}
-
-function renderDatasetHistory(dataset: DatasetHistoryResult, versions: DatasetVersionResource[]) {
-  return (
-    <div className="record-card">
-      <RecordHeader title={`History (${versions.length} version${versions.length === 1 ? "" : "s"})`} subtitle={dataset.dataset.datasetId} />
-      <div className="stack">
-        {versions.map((version) => (
-          <div className="nested-card" key={version.storageId}>
-            <RecordHeader title={`Version ${version.versionNumber}`} subtitle={formatDateTime(version.registeredAt)} />
-            <div className="detail-grid compact-grid">
-              <Detail label="Immutable ref" value={version.immutableRef} mono />
-              <Detail label="Registered by" value={version.registeredBy} mono />
-              <Detail label="Metadata Hash" value={version.metadataHash ?? "Not set"} mono />
-              <Detail label="Entries" value={String(version.entries.length)} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, helper, children }: { label: string; helper?: string; children: ReactNode }) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      {children}
-      {helper ? <small>{helper}</small> : null}
-    </label>
-  );
-}
-
-function Detail({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="detail">
-      <span className="label">{label}</span>
-      <strong className={mono ? "mono-text" : undefined}>{value}</strong>
-    </div>
-  );
-}
-
-function RecordHeader({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div className="record-header">
-      <h3>{title}</h3>
-      <p>{subtitle}</p>
-    </div>
-  );
-}
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div className="empty-state">
-      <div className="empty-state-art" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-      </div>
-      <p>{message}</p>
-    </div>
-  );
-}
-
-function LoadingState({ message }: { message: string }) {
-  return (
-    <div className="loading-state" aria-live="polite" aria-busy="true">
-      <div className="loading-bar loading-bar-wide" />
-      <div className="loading-bar" />
-      <div className="loading-grid">
-        <div className="loading-chip" />
-        <div className="loading-chip" />
-        <div className="loading-chip" />
-      </div>
-      <p>{message}</p>
-    </div>
-  );
-}
-
-function RecentIdList({
-  title,
-  ids,
-  onSelect
-}: {
-  title: string;
-  ids: string[];
-  onSelect: (value: string) => void;
-}) {
-  return (
-    <div className="subsection">
-      <div className="subsection-header">
-        <div>
-          <p className="label">{title}</p>
-          <p className="helper-copy">Stored locally in this browser for quick reloads.</p>
-        </div>
-      </div>
-      {ids.length === 0 ? (
-        <EmptyState message="Nothing loaded yet." />
-      ) : (
-        <div className="list-stack">
-          {ids.map((id) => (
-            <button className="list-item" key={id} type="button" onClick={() => onSelect(id)}>
-              <span className="mono-text">{id}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DatasetEntries({ entries }: { entries: DatasetVersionResource["entries"] }) {
-  return (
-    <div className="subsection">
-      <div className="subsection-header">
-        <div>
-          <p className="label">Entries</p>
-          <p className="helper-copy">{entries.length} item(s) in this version.</p>
-        </div>
-      </div>
-      {entries.length === 0 ? (
-        <EmptyState message="No dataset entries stored in this version." />
-      ) : (
-        <div className="stack">
-          {entries.map((entry) => (
-            <div className="nested-card" key={entry.id}>
-              <RecordHeader
-                title={`${entry.sourceType} @ position ${entry.position}`}
-                subtitle={entry.taskId ?? entry.correctionId ?? "Unresolved reference"}
-              />
-              <div className="detail-grid compact-grid">
-                <Detail label="Task ID" value={entry.taskId ?? "Not set"} mono />
-                <Detail label="Correction ID" value={entry.correctionId ?? "Not set"} mono />
-                <Detail label="Metadata URI" value={entry.metadataUri ?? "Not set"} mono />
-                <Detail label="Metadata Hash" value={entry.metadataHash ?? "Not set"} mono />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+function uniqueStrings(values: string[]) {
+  return [...new Set(values)];
 }

@@ -5,17 +5,17 @@ const architectureCards = [
   {
     title: "0G Storage",
     label: "Versioning",
-    copy: "Every label and dataset version is represented as an immutable storage object with a root hash anchored to platform records."
+    copy: "Every artifact version is represented as an immutable storage object with a root hash anchored to platform records."
   },
   {
     title: "0G Chain",
     label: "Contracts",
-    copy: "Task creation, correction submission, and dataset registration flow through low-cost smart contract primitives."
+    copy: "Artifact publishing, correction submission, and library registration flow through low-cost smart contract primitives."
   },
   {
     title: "0G Compute",
     label: "Fine-tuning",
-    copy: "High-consensus dataset versions can trigger model update jobs and attach resulting model hashes to the data lineage."
+    copy: "High-consensus artifact versions can trigger model update jobs and attach resulting model hashes to the artifact lineage."
   },
   {
     title: "Agent ID",
@@ -32,7 +32,7 @@ export function ArchitectureSection() {
           <SectionHeading
             kicker="Architecture"
             title="Every infrastructure layer is load-bearing"
-            copy="The Stitch export's architecture story has been converted into responsive React sections that mirror the working dashboard: tasks, datasets, storage proofs, and agent artifacts."
+            copy="The Stitch export's architecture story has been converted into responsive React sections that mirror the working dashboard: agent runs, storage proofs, and artifact libraries."
           />
         </Reveal>
 
@@ -40,7 +40,7 @@ export function ArchitectureSection() {
           <h3>System overview</h3>
           <pre>
 {`React Workspace       <->  API Service       <->  0G Chain
-Task + Label Store    ->   0G Storage      ->   Dataset Versions
+Artifact Library      ->   0G Storage      ->   Versioned Artifacts
 Consensus Engine      ->   0G Compute      ->   Improved Agent`}
           </pre>
           <div className="landing-tech-strip">

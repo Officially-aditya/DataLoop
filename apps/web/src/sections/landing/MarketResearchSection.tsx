@@ -4,7 +4,7 @@ import { SectionHeading } from "../../components/landing/SectionHeading";
 const marketCards = [
   {
     metric: "Specialized agents",
-    title: "Narrow tasks need narrow data",
+    title: "Narrow agents need narrow artifacts",
     copy: "Spreadsheet, contract, CRM, analytics, and support agents all need domain-correct examples that generic model data does not provide."
   },
   {
@@ -27,8 +27,8 @@ export function MarketResearchSection() {
           <SectionHeading
             align="center"
             kicker="Market Research"
-            title="The next AI moat is verified task data"
-            copy="Model quality is increasingly constrained by workflow-specific datasets, not just larger base models. DataLoop positions those datasets as liquid, inspectable infrastructure."
+            title="The next AI moat is verified artifact context"
+            copy="Model quality is increasingly constrained by workflow-specific artifacts, not just larger base models. DataLoop positions those artifacts as liquid, inspectable infrastructure."
           />
         </Reveal>
         <div className="landing-market-grid">
