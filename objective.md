@@ -101,7 +101,7 @@ The user should be able to compare both responses side by side.
 Agents should retrieve artifacts from the user library by:
 
 - Domain
-- Task pattern
+- Artifact pattern
 - Question pattern
 - Concepts
 - Formula or answer pattern

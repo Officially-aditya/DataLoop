@@ -10,6 +10,8 @@ packages/contracts/artifacts/
 packages/contracts/cache/
 
 *.log
+*.md
+!README.md
 *.tsbuildinfo
 DataLoop_3_Week_Build_Path_Detailed.docx
 FINE_TUNING_VS_MARKDOWN_APPROACH.md

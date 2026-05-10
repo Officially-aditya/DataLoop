@@ -1,5 +1,6 @@
-import "dotenv/config";
 import "@nomicfoundation/hardhat-toolbox";
+import dotenv from "dotenv";
+import path from "node:path";
 import {
   TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD,
   TASK_COMPILE_SOLIDITY_LOG_DOWNLOAD_COMPILER_END,
@@ -9,6 +10,9 @@ import { subtask, type HardhatUserConfig } from "hardhat/config";
 import { CompilerDownloader, CompilerPlatform } from "hardhat/internal/solidity/compiler/downloader";
 import { getCompilersDir } from "hardhat/internal/util/global-dir";
 import type { SolcBuild } from "hardhat/types/builtin-tasks/compile";
+
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+dotenv.config();
 
 subtask(TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD).setAction(
   async ({ quiet, solcVersion }, { run }): Promise<SolcBuild> => {
@@ -45,11 +49,16 @@ subtask(TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD).setAction(
   }
 );
 
+const deployerPrivateKey = [
+  process.env.DEPLOYER_PRIVATE_KEY,
+  process.env.ZG_PRIVATE_KEY,
+  process.env.API_SIGNER_PRIVATE_KEY
+].find(isValidPrivateKey);
+
 const hasDeployConfig =
   typeof process.env.ZG_RPC_URL === "string" &&
   process.env.ZG_RPC_URL.length > 0 &&
-  typeof process.env.DEPLOYER_PRIVATE_KEY === "string" &&
-  process.env.DEPLOYER_PRIVATE_KEY.length > 0;
+  deployerPrivateKey !== undefined;
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -72,10 +81,23 @@ const config: HardhatUserConfig = {
     ? {
         zgMainnet: {
           url: process.env.ZG_RPC_URL as string,
-          accounts: [process.env.DEPLOYER_PRIVATE_KEY as string]
+          accounts: [normalizePrivateKey(deployerPrivateKey as string)]
         }
       }
     : {}
 };
 
 export default config;
+
+function isValidPrivateKey(value: string | undefined) {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const normalized = value.startsWith("0x") ? value.slice(2) : value;
+  return /^[0-9a-fA-F]{64}$/.test(normalized);
+}
+
+function normalizePrivateKey(value: string) {
+  return value.startsWith("0x") ? value : `0x${value}`;
+}

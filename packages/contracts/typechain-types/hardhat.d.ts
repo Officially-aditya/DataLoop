@@ -14,10 +14,19 @@ import * as Contracts from ".";
 declare module "hardhat/types/runtime" {
   interface HardhatEthersHelpers extends HardhatEthersHelpersBase {
     getContractFactory(
+      name: "ArtifactRegistry",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.ArtifactRegistry__factory>;
+    getContractFactory(
       name: "DataLoopCore",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.DataLoopCore__factory>;
 
+    getContractAt(
+      name: "ArtifactRegistry",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.ArtifactRegistry>;
     getContractAt(
       name: "DataLoopCore",
       address: string | ethers.Addressable,
@@ -25,10 +34,19 @@ declare module "hardhat/types/runtime" {
     ): Promise<Contracts.DataLoopCore>;
 
     deployContract(
+      name: "ArtifactRegistry",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.ArtifactRegistry>;
+    deployContract(
       name: "DataLoopCore",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.DataLoopCore>;
 
+    deployContract(
+      name: "ArtifactRegistry",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.ArtifactRegistry>;
     deployContract(
       name: "DataLoopCore",
       args: any[],

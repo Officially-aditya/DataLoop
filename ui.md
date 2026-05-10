@@ -41,7 +41,7 @@ This does not mean copying any of these products directly. The goal is the same 
 
 Use a persistent left sidebar instead of the current top header navigation.
 
-The current header items like `Task`, `Dataset`, and `Agent` should move into the sidebar as primary navigation items. The workspace bubbles should also move into the sidebar as named workspace entries.
+The sidebar should use the current product model: `Agent` and `Artifacts`. Artifacts are the reusable data layer for agents, so the UI should not expose legacy labeling or separate data-pack workspaces. The workspace bubbles should also move into the sidebar as named workspace entries.
 
 The main page should have three stable regions:
 
@@ -62,8 +62,6 @@ Primary sections:
 - Artifacts
 - Marketplace
 - Uploads
-- Tasks
-- Datasets
 - Settings
 
 Workspace entries should appear in the sidebar as simple named items, not bubbles in the main content area. Clicking a workspace name should open that workspace in the main content area.
@@ -76,7 +74,7 @@ DataLoop
 Workspace
   Excel Agent
   Finance QA
-  Dataset Builder
+  Excel Artifact Pack
 
 Platform
   Overview
@@ -84,8 +82,6 @@ Platform
   Artifacts
   Marketplace
   Uploads
-  Tasks
-  Datasets
 
 System
   Wallet
@@ -233,25 +229,18 @@ The upload page should show:
 
 After upload, the artifact should be added to the user's library and become usable by the Agent.
 
-## Tasks And Datasets
+## Artifact Data Layer
 
-Tasks and Datasets should stay in the product, but they should not compete with the Agent demo.
+Artifacts are the product's data layer. Do not expose separate legacy labeling or data-pack pages.
 
-Move them into the sidebar as standard pages.
+Artifacts page:
 
-Tasks page:
-
-- Show task list.
-- Show task status.
-- Show associated dataset.
-- Show linked agent/artifacts if relevant.
-
-Datasets page:
-
-- Show available datasets.
-- Show dataset status.
-- Show upload/import actions.
-- Show connection to tasks and artifacts.
+- Show installed artifacts.
+- Show marketplace artifacts.
+- Show uploaded artifacts.
+- Show storage status and proof metadata.
+- Show which artifacts are available to the agent.
+- Let users add, remove, inspect, and upload artifacts without leaving the artifact workspace.
 
 ## Overview Page
 
@@ -356,7 +345,7 @@ This flow should feel like one connected product experience, not separate screen
 ## Implementation Checklist
 
 - Replace top navigation with a persistent sidebar.
-- Move `Task`, `Dataset`, and `Agent` into sidebar navigation.
+- Move `Agent` and `Artifacts` into sidebar navigation.
 - Move workspace bubbles into sidebar as named workspace entries.
 - Add active route/page state to sidebar items.
 - Create a consistent page header pattern.

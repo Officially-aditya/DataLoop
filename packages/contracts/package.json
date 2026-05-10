@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "compile": "hardhat compile",
+    "deploy:artifact-registry:zg-mainnet": "hardhat run scripts/deploy-artifact-registry.ts --network zgMainnet",
     "deploy:zg-mainnet": "hardhat run scripts/deploy.ts --network zgMainnet",
+    "register:bootstrap-artifact:zg-mainnet": "hardhat run scripts/register-bootstrap-artifact.ts --network zgMainnet",
     "test": "hardhat test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

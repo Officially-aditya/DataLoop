@@ -1,6 +1,6 @@
 # DataLoop
 
-Week 1 foundation scaffold for the DataLoop platform, now extended with a Week 2 agent benchmark scaffold.
+DataLoop is an agent artifact platform for comparing raw 0G Compute answers with artifact-grounded answers backed by 0G Storage.
 
 ## Target network
 
@@ -14,7 +14,7 @@ Week 1 foundation scaffold for the DataLoop platform, now extended with a Week 2
 
 ## Workspace layout
 
-- `apps/agent`: Week 2 benchmark agent, failure detector, artifact generator, and base-platform publisher
+- `apps/agent`: benchmark agent, failure detector, artifact generator, and artifact retrieval tooling
   - now oriented around markdown artifact generation and retrieval
 - `apps/api`: Fastify API entry point and route scaffolding
 - `apps/web`: React + Vite frontend shell and wallet integration hooks
@@ -22,19 +22,30 @@ Week 1 foundation scaffold for the DataLoop platform, now extended with a Week 2
 - `packages/storage`: Prisma storage package
 - `packages/shared`: shared platform types
 
-## Week 1 API routes
+## Agent artifact API routes
 
-- `POST /v1/tasks`: create a task on-chain and persist its storage record
-- `POST /v1/tasks/:taskId/corrections`: submit a correction for an existing task
-- `POST /v1/datasets/:datasetId/versions`: register a new dataset version and persist version history
-- `GET /v1/tasks/:taskId`: retrieve canonical task data
-- `GET /v1/tasks/:taskId/corrections`: list corrections for a task
-- `GET /v1/datasets/:datasetId/history`: retrieve full dataset version history
-- `GET /v1/datasets/:datasetId/latest`: retrieve the latest dataset version
+- `GET /v1/agent/marketplace/artifacts`: list marketplace artifacts
+- `GET /v1/agent/library`: list the user's active artifact library
+- `POST /v1/agent/library/artifacts`: add a marketplace artifact to the library
+- `DELETE /v1/agent/library/artifacts/:artifactId`: remove an artifact from the library
+- `POST /v1/agent/artifacts/upload`: upload a custom artifact
+- `POST /v1/agent/compare`: compare raw 0G Compute output with artifact-grounded output
 
-Identifiers for `taskId` and `datasetId` are expected as `bytes32` hex strings so they can be used directly by the Week 1 contract layer.
+## 0G Artifact Registry
 
-## Week 1 run instructions
+The `ArtifactRegistry` contract creates on-chain artifact IDs and stores the artifact's creator,
+version, metadata reference, and 0G storage reference.
+
+| Item | Value |
+|------|-------|
+| Contract | `0x8573E169A852f3c232d16dfF033cB67848F1c65b` |
+| Deploy tx | `0xb70cd476567dc8bc5142628b35b6791576e34f86e8ec498cb88f18ea03a01985` |
+| Excel artifact ID | `0x3acf43139e75e4059aabb7737a734b3922f95daae8ae323c51b37a8c5c2d43f9` |
+| Excel artifact tx | `0xc8bd7e1d2568b9d55384b4e6499f93e66820926689381e1380ac6b7632047882` |
+| Contract explorer | https://chainscan-galileo.0g.ai/address/0x8573E169A852f3c232d16dfF033cB67848F1c65b |
+| Artifact tx explorer | https://chainscan-galileo.0g.ai/tx/0xc8bd7e1d2568b9d55384b4e6499f93e66820926689381e1380ac6b7632047882 |
+
+## Run instructions
 
 1. Install dependencies with `npm install`.
 2. Copy `.env.example` into package-level `.env` files as needed and fill in
@@ -43,50 +54,18 @@ Identifiers for `taskId` and `datasetId` are expected as `bytes32` hex strings s
 4. Start the API in one terminal with `npm run dev:api`.
 5. Start the web app in another terminal with `npm run dev:web`.
 
-## Week 1 demo fixture seed
+## Agent scaffold
 
-Use this after the API is running to pre-populate a full demo loop:
-
-1. Run `npm run seed:week1`.
-2. Open the web app.
-3. Connect wallet.
-4. In Task Explorer and Dataset Explorer, load the printed task and dataset IDs.
-
-The seed script performs this sequence:
-
-- creates a task
-- submits a correction for that task
-- registers dataset version 1 (task + correction entry)
-- registers dataset version 2 (new canonical entry set)
-- verifies retrieval of latest canonical state
-
-If your API runs on a non-default URL, set `WEEK1_API_BASE_URL` before running the seed command.
-
-## Week 1 verification checklist
-
-- task creation works: `POST /v1/tasks`
-- correction submission works: `POST /v1/tasks/:taskId/corrections`
-- versioned dataset storage works: `POST /v1/datasets/:datasetId/versions`
-- retrieval works:
-	- `GET /v1/tasks/:taskId`
-	- `GET /v1/tasks/:taskId/corrections`
-	- `GET /v1/datasets/:datasetId/history`
-	- `GET /v1/datasets/:datasetId/latest`
-
-The current codebase now includes a Week 2 benchmark scaffold, but it still excludes Week 3 logic such as fine-tuning execution, model reload, and cross-component demo orchestration.
-
-## Week 2 scaffold
-
-The Week 2 workspace introduces one focused demo agent:
+The workspace introduces one focused demo agent:
 
 - domain: builder support / wallet issue triage
 - output: strict JSON classification with confidence and recommended action
 - failure capture: invalid JSON, schema mismatch, low confidence, or benchmark mismatch
 - correction output: markdown knowledge artifacts, corrected records, and optional JSONL training examples
 - retrieval loop: baseline run, artifact generation, then artifact-augmented rerun
-- integration: optional push into the Week 1 API as task + correction + dataset version records
+- integration: optional publish into the artifact API and 0G Storage flow
 
-### Week 2 run modes
+### Run modes
 
 1. Local mock mode for repeatable development:
    - `npm run agent:run`

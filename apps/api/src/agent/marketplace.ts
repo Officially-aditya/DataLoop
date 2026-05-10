@@ -3,8 +3,23 @@ import type { AgentArtifactResource } from "./types";
 
 const seedTimestamp = "2026-05-05T00:00:00.000Z";
 
-export const marketplaceArtifacts: AgentArtifactResource[] = [
-  createMarketplaceArtifact({
+export interface ExcelArtifactCase {
+  id: string;
+  title: string;
+  difficulty: "easy" | "medium" | "hard";
+  tags: string[];
+  questionPattern: string;
+  formulaPattern: string;
+  concepts: string[];
+  answer: string;
+  rawFormula: string | null;
+  rawAnswer: string;
+  usageCount: number;
+  benchmarkScore: number;
+}
+
+export const excelArtifactCases: ExcelArtifactCase[] = [
+  {
     id: "sumifs-multi-condition",
     title: "SUMIFS with multiple criteria",
     difficulty: "medium",
@@ -18,8 +33,8 @@ export const marketplaceArtifacts: AgentArtifactResource[] = [
     rawAnswer: "Sums North region sales after Jan 1, 2024 using date criteria.",
     usageCount: 421,
     benchmarkScore: 0.95
-  }),
-  createMarketplaceArtifact({
+  },
+  {
     id: "xlookup-basics",
     title: "Basic XLOOKUP lookup",
     difficulty: "easy",
@@ -33,8 +48,8 @@ export const marketplaceArtifacts: AgentArtifactResource[] = [
     rawAnswer: "XLOOKUP finds the salary for John Doe.",
     usageCount: 318,
     benchmarkScore: 0.92
-  }),
-  createMarketplaceArtifact({
+  },
+  {
     id: "filter-dynamic-array",
     title: "FILTER spilled array",
     difficulty: "medium",
@@ -47,8 +62,8 @@ export const marketplaceArtifacts: AgentArtifactResource[] = [
     rawAnswer: "Filters rows where amounts are over 1000.",
     usageCount: 256,
     benchmarkScore: 0.9
-  }),
-  createMarketplaceArtifact({
+  },
+  {
     id: "absolute-ref-mistake",
     title: "Fix absolute reference error",
     difficulty: "medium",
@@ -61,8 +76,8 @@ export const marketplaceArtifacts: AgentArtifactResource[] = [
     rawAnswer: "Use $ to lock row or column when copying.",
     usageCount: 177,
     benchmarkScore: 0.88
-  }),
-  createMarketplaceArtifact({
+  },
+  {
     id: "vlookup-limitations",
     title: "When not to use VLOOKUP",
     difficulty: "easy",
@@ -76,8 +91,8 @@ export const marketplaceArtifacts: AgentArtifactResource[] = [
     rawAnswer: "VLOOKUP is older and XLOOKUP is usually easier.",
     usageCount: 203,
     benchmarkScore: 0.89
-  }),
-  createMarketplaceArtifact({
+  },
+  {
     id: "text-numbers-sum",
     title: "Sum text-formatted numbers",
     difficulty: "easy",
@@ -90,6 +105,29 @@ export const marketplaceArtifacts: AgentArtifactResource[] = [
     rawAnswer: "Try SUM on the column after checking formatting.",
     usageCount: 141,
     benchmarkScore: 0.86
+  }
+];
+
+const excelConcepts = unique(excelArtifactCases.flatMap((artifactCase) => artifactCase.concepts));
+const excelTags = unique(excelArtifactCases.flatMap((artifactCase) => artifactCase.tags));
+const excelFileBody = buildExcelArtifactFileBody(excelArtifactCases);
+
+export const marketplaceArtifacts: AgentArtifactResource[] = [
+  createMarketplaceArtifact({
+    id: "excel",
+    title: "Excel artifact pack",
+    difficulty: "medium",
+    tags: ["excel", "formula library", ...excelTags].slice(0, 18),
+    questionPattern: excelArtifactCases.map((artifactCase) => artifactCase.questionPattern).join("\n"),
+    formulaPattern: "See excel.md",
+    concepts: excelConcepts,
+    answer: excelFileBody,
+    rawFormula: null,
+    rawAnswer: "The raw model answers from general Excel knowledge without the bundled excel.md artifact pack.",
+    usageCount: excelArtifactCases.reduce((total, artifactCase) => total + artifactCase.usageCount, 0),
+    benchmarkScore:
+      excelArtifactCases.reduce((total, artifactCase) => total + artifactCase.benchmarkScore, 0) /
+      excelArtifactCases.length
   })
 ];
 
@@ -111,7 +149,42 @@ function createMarketplaceArtifact(
     updatedAt: seedTimestamp,
     storage: {
       ...buildPreparedStorageProof(artifact.id, contentHash),
-      uri: `0g://artifact-marketplace/${artifact.id}`
+      uri: "0g://artifact-marketplace/excel.md"
     }
   };
+}
+
+function buildExcelArtifactFileBody(artifactCases: ExcelArtifactCase[]) {
+  return [
+    "# Excel Artifact Pack",
+    "",
+    "A single DataLoop artifact file containing reusable Excel question patterns, formulas, concepts, and answer guidance.",
+    "",
+    "## Questions",
+    "",
+    artifactCases.map(renderExcelArtifactCase).join("\n\n")
+  ].join("\n");
+}
+
+function renderExcelArtifactCase(artifactCase: ExcelArtifactCase, index: number) {
+  return [
+    `### ${index + 1}. ${artifactCase.title}`,
+    "",
+    `Question: ${artifactCase.questionPattern}`,
+    "",
+    "Formula:",
+    "```excel",
+    artifactCase.formulaPattern || "No formula pattern",
+    "```",
+    "",
+    `Concepts: ${artifactCase.concepts.join(", ")}`,
+    "",
+    `Answer: ${artifactCase.answer}`,
+    "",
+    `Raw baseline: ${artifactCase.rawAnswer}`
+  ].join("\n");
+}
+
+function unique(values: string[]) {
+  return [...new Set(values)];
 }

@@ -46,7 +46,10 @@ test("agent routes expose marketplace, library install, upload, and comparison f
 
   assert.equal(marketplaceResponse.statusCode, 200);
   const marketplaceBody = marketplaceResponse.json();
-  assert.ok(marketplaceBody.data.artifacts.length >= 6);
+  assert.equal(marketplaceBody.data.artifacts.length, 1);
+  assert.equal(marketplaceBody.data.artifacts[0].id, "excel");
+  assert.match(marketplaceBody.data.artifacts[0].answer, /SUMIFS with multiple criteria/);
+  assert.match(marketplaceBody.data.artifacts[0].answer, /Basic XLOOKUP lookup/);
 
   const initialLibraryResponse = await app.inject({
     method: "GET",
@@ -54,18 +57,18 @@ test("agent routes expose marketplace, library install, upload, and comparison f
   });
 
   assert.equal(initialLibraryResponse.statusCode, 200);
-  assert.equal(initialLibraryResponse.json().data.artifacts[0].id, "sumifs-multi-condition");
+  assert.equal(initialLibraryResponse.json().data.artifacts[0].id, "excel");
 
   const addResponse = await app.inject({
     method: "POST",
     url: "/v1/agent/library/artifacts",
     payload: {
-      artifactId: "xlookup-basics"
+      artifactId: "excel"
     }
   });
 
   assert.equal(addResponse.statusCode, 200);
-  assert.equal(addResponse.json().data.library[0].id, "xlookup-basics");
+  assert.equal(addResponse.json().data.library[0].id, "excel");
 
   const compareResponse = await app.inject({
     method: "POST",
@@ -80,8 +83,22 @@ test("agent routes expose marketplace, library install, upload, and comparison f
   const compareBody = compareResponse.json();
   assert.equal(compareBody.data.raw.label, "Raw LLM");
   assert.equal(compareBody.data.raw.artifactIds.length, 0);
-  assert.equal(compareBody.data.augmented.artifactIds[0], "xlookup-basics");
+  assert.equal(compareBody.data.augmented.artifactIds[0], "excel");
+  assert.match(compareBody.data.augmented.formula, /XLOOKUP/);
   assert.equal(compareBody.data.retrievedArtifacts[0].storage.provider, "0G_STORAGE");
+
+  const regexSearchCompareResponse = await app.inject({
+    method: "POST",
+    url: "/v1/agent/compare",
+    payload: {
+      question: "Column A has text-formatted numbers and SUM returns 0. How do I fix the formula?"
+    }
+  });
+
+  assert.equal(regexSearchCompareResponse.statusCode, 200);
+  const regexSearchCompareBody = regexSearchCompareResponse.json();
+  assert.equal(regexSearchCompareBody.data.augmented.artifactIds[0], "excel");
+  assert.match(regexSearchCompareBody.data.augmented.formula, /VALUE/);
 
   const uploadResponse = await app.inject({
     method: "POST",
