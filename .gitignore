@@ -14,8 +14,11 @@ packages/contracts/cache/
 !README.md
 ui.md
 website.md
-design.md
-design22.md
+DESIGN.md
+DESIGN22.md
+TODO.md
+objective.md
+dataloop_design_system_design.md
 *.tsbuildinfo
 DataLoop_3_Week_Build_Path_Detailed.docx
 FINE_TUNING_VS_MARKDOWN_APPROACH.md
