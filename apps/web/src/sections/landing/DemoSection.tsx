@@ -14,7 +14,7 @@ export function DemoSection({ onLaunchApp }: DemoSectionProps) {
           <SectionHeading
             kicker="Product Demo"
             title="ExcelMind shows the loop end to end"
-            copy="The existing DataLoop dashboard already includes an agent artifact workspace. The landing page now points users directly into that product surface."
+            copy="The existing Neura dashboard already includes an agent artifact workspace. The landing page now points users directly into that product surface."
           />
         </Reveal>
 
@@ -31,7 +31,7 @@ export function DemoSection({ onLaunchApp }: DemoSectionProps) {
                 I cannot determine the total recurring revenue. The workbook contains multiple sheets and ambiguous
                 labels.
               </div>
-              <p>Failure matched. Searching DataLoop artifacts...</p>
+              <p>Failure matched. Searching Neura artifacts...</p>
             </div>
           </Reveal>
 

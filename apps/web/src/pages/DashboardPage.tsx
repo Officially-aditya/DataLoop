@@ -307,7 +307,7 @@ const MARKETPLACE_ARTIFACTS: DemoArtifact[] = [
     answer: buildExcelArtifactFileBody(),
     rawAnswer: "The raw model answers from general Excel knowledge without the bundled excel.md artifact pack.",
     source: "marketplace",
-    creator: "DataLoop",
+    creator: "Neura",
     version: "1.0.0",
     usageCount: EXCEL_ARTIFACT_CASES.reduce((total, artifactCase) => total + artifactCase.usageCount, 0),
     benchmarkScore:
@@ -325,7 +325,7 @@ const MARKETPLACE_ARTIFACTS: DemoArtifact[] = [
     answer: buildZGArtifactFileBody(),
     rawAnswer: "The raw model answers from general 0G knowledge without the curated 0G docs artifact pack.",
     source: "marketplace",
-    creator: "DataLoop",
+    creator: "Neura",
     version: "1.0.0",
     usageCount: ZG_ARTIFACT_CASES.reduce((total, artifactCase) => total + artifactCase.usageCount, 0),
     benchmarkScore:
@@ -1130,7 +1130,7 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
             <WorkspaceToggle activeWorkspace={activeWorkspace} onChange={handleWorkspaceChange} />
 
             <div className="brand-lockup">
-              <strong className="app-wordmark">DataLoop</strong>
+              <strong className="app-wordmark">Neura</strong>
             </div>
           </div>
 
@@ -1442,7 +1442,7 @@ function WorkspaceToggle({
           >
             <div>
               <span className="label">Workspace</span>
-              <h2>DataLoop</h2>
+              <h2>Neura</h2>
             </div>
             <motion.div
               initial={{ width: 0 }}
@@ -2146,7 +2146,7 @@ function buildExcelArtifactFileBody() {
   return [
     "# Excel Artifact Pack",
     "",
-    "A single DataLoop artifact file containing reusable Excel question patterns, formulas, concepts, and answer guidance.",
+    "A single Neura artifact file containing reusable Excel question patterns, formulas, concepts, and answer guidance.",
     "",
     "## Questions",
     "",
@@ -2177,7 +2177,7 @@ function buildZGArtifactFileBody() {
   return [
     "# 0G Docs Artifact Pack",
     "",
-    "A DataLoop artifact file containing 0G website and documentation Q&A for the agent benchmark.",
+    "A Neura artifact file containing 0G website and documentation Q&A for the agent benchmark.",
     "",
     "## Questions",
     "",

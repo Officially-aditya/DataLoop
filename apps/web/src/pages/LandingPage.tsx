@@ -21,7 +21,7 @@ const navigationItems = [
   {
     label: "Solution",
     href: "#solution",
-    summary: "The DataLoop protocol loop across artifacts, consensus, storage, and buyers.",
+    summary: "The Neura protocol loop across artifacts, consensus, storage, and buyers.",
     meta: "Protocol"
   },
   {
@@ -55,8 +55,8 @@ export function LandingPage({ onLaunchApp }: LandingPageProps) {
     <div className="landing-page">
       <div className="landing-noise" aria-hidden="true" />
       <header className="landing-nav">
-        <a className="landing-brand" href="#home" aria-label="DataLoop home">
-          <span className="landing-wordmark">DataLoop</span>
+        <a className="landing-brand" href="#home" aria-label="Neura home">
+          <span className="landing-wordmark">Neura</span>
         </a>
         <nav className="landing-navigation-menu" aria-label="Landing sections">
           <ul>

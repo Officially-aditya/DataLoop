@@ -16,7 +16,7 @@ export function HeroSection({ onLaunchApp }: HeroSectionProps) {
           <p className="landing-kicker">Artifact Economy for AI Agents</p>
           <SplitText text="Install agent knowledge, one artifact at a time." />
           <p>
-            DataLoop turns expert corrections into versioned, on-chain artifacts that AI developers can add to agent
+            Neura turns expert corrections into versioned, on-chain artifacts that AI developers can add to agent
             libraries after they ship.
           </p>
           <div className="landing-action-row">
@@ -28,7 +28,7 @@ export function HeroSection({ onLaunchApp }: HeroSectionProps) {
               View Architecture
             </LandingButton>
           </div>
-          <div className="landing-hero-metrics" aria-label="DataLoop platform signals">
+          <div className="landing-hero-metrics" aria-label="Neura platform signals">
             <span>Artifact marketplace</span>
             <span>Expert consensus</span>
             <span>0G storage proofs</span>
@@ -36,9 +36,9 @@ export function HeroSection({ onLaunchApp }: HeroSectionProps) {
         </Reveal>
 
         <Reveal className="landing-hero-visual" delay="short">
-          <div className="landing-orbit-card" aria-label="DataLoop infrastructure loop">
+          <div className="landing-orbit-card" aria-label="Neura infrastructure loop">
             <div className="landing-orbit-core">
-              <strong>DataLoop</strong>
+              <strong>Neura</strong>
             </div>
             {orbitNodes.map((node, index) => (
               <span className={`landing-orbit-node landing-orbit-node-${index + 1}`} key={node}>

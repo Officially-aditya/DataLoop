@@ -30,7 +30,7 @@ export function ProblemSection() {
               examples of the exact edge cases it fails on in production.
             </p>
             <p>
-              DataLoop converts those failures into expert-authored artifacts, consensus-weighted labels, and immutable
+              Neura converts those failures into expert-authored artifacts, consensus-weighted labels, and immutable
               artifact versions ready for model updates.
             </p>
           </Reveal>
@@ -49,14 +49,14 @@ export function ProblemSection() {
           <div className="landing-comparison-table">
             <div className="landing-table-head">Problem Area</div>
             <div className="landing-table-head">Today</div>
-            <div className="landing-table-head">DataLoop</div>
-            {rows.flatMap(([area, today, dataloop]) => [
+            <div className="landing-table-head">Neura</div>
+            {rows.flatMap(([area, today, neura]) => [
               <div key={`${area}-area`}>{area}</div>,
               <div key={`${area}-today`} className="landing-muted-cell">
                 {today}
               </div>,
-              <div key={`${area}-dataloop`} className="landing-positive-cell">
-                {dataloop}
+              <div key={`${area}-neura`} className="landing-positive-cell">
+                {neura}
               </div>
             ])}
           </div>

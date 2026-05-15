@@ -15,7 +15,7 @@ const marketCards = [
   {
     metric: "Reusable artifacts",
     title: "Corrections become assets",
-    copy: "DataLoop treats repeated answer patterns as reusable artifacts that can be installed into agent libraries."
+    copy: "Neura treats repeated answer patterns as reusable artifacts that can be installed into agent libraries."
   }
 ];
 
@@ -28,7 +28,7 @@ export function MarketResearchSection() {
             align="center"
             kicker="Market Research"
             title="The next AI moat is verified artifact context"
-            copy="Model quality is increasingly constrained by workflow-specific artifacts, not just larger base models. DataLoop positions those artifacts as liquid, inspectable infrastructure."
+            copy="Model quality is increasingly constrained by workflow-specific artifacts, not just larger base models. Neura positions those artifacts as liquid, inspectable infrastructure."
           />
         </Reveal>
         <div className="landing-market-grid">

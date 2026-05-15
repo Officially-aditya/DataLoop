@@ -29,7 +29,7 @@ export function SolutionSection({ onLaunchApp }: SolutionSectionProps) {
       <div className="landing-container">
         <Reveal>
           <SectionHeading
-            kicker="The DataLoop Protocol"
+            kicker="The Neura Protocol"
             title="A market loop for production agent improvement"
             copy="The platform connects artifact creators, expert labelers, storage proofs, and reusable agent artifacts in a single workspace."
           />
