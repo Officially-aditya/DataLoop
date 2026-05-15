@@ -1830,23 +1830,169 @@ textarea:focus {
 }
 
 @media (max-width: 760px) {
-  .topbar {
-    top: 10px;
-    left: 10px;
-    right: 10px;
+  body {
+    overflow-x: hidden;
   }
 
-  .topbar-inner,
-  .workspace-shell,
-  .panel-body,
-  .panel-header {
-    padding-left: 16px;
-    padding-right: 16px;
+  .topbar {
+    position: sticky;
+    top: 8px;
+    left: auto;
+    right: auto;
+    width: calc(100% - 20px);
+    margin: 10px auto 0;
+  }
+
+  .topbar-inner {
+    gap: 10px;
+    padding: 10px;
+    border-radius: 22px;
+  }
+
+  .topbar-brand-area {
+    display: grid;
+    grid-template-columns: 40px 40px minmax(0, 1fr);
+    gap: 10px;
+    flex-wrap: nowrap;
+  }
+
+  .brand-lockup {
+    min-width: 0;
+  }
+
+  .app-wordmark {
+    font-size: 1.08rem;
+  }
+
+  .workspace-menu,
+  .workspace-menu-button,
+  .back-button.back-icon-button {
+    width: 40px;
+  }
+
+  .workspace-menu-button,
+  .back-button.back-icon-button {
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0;
+    border-radius: 12px;
+  }
+
+  .topbar-meta {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    align-items: stretch;
+    min-width: 0;
+  }
+
+  .network-select {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .network-select,
+  .wallet-connect,
+  .wallet-menu-wrap {
+    min-width: 0;
+    width: auto;
+  }
+
+  .network-select-trigger {
+    width: 100%;
+    min-height: 42px;
+    padding: 6px 10px;
+  }
+
+  .network-pill strong,
+  .account-pill strong {
+    font-size: 0.8rem;
+  }
+
+  .wallet-address-pill {
+    display: none;
+  }
+
+  .wallet-menu-wrap {
+    grid-column: 1;
+    grid-row: 2;
+    position: relative;
+  }
+
+  .topbar-notice {
+    grid-column: 1 / -1;
+    display: block;
+    padding: 10px 12px;
+    border: 1px solid rgba(73, 68, 84, 0.42);
+    border-radius: 14px;
+    background: rgba(57, 57, 59, 0.24);
+    color: rgba(203, 195, 215, 0.86);
+    font-size: 0.8rem;
+    line-height: 1.45;
+  }
+
+  .topbar-button {
+    min-width: 0;
+    min-height: 42px;
+    padding: 8px 12px;
   }
 
   .app-shell {
     width: min(100%, calc(100% - 20px));
-    padding-top: 186px;
+    padding: 16px 0 42px;
+    overflow-x: hidden;
+  }
+
+  .workspace-shell {
+    margin-top: 14px;
+    padding: 16px;
+  }
+
+  .workspace-heading {
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+
+  .workspace-heading h2 {
+    margin-top: 6px;
+    font-size: 1.5rem;
+  }
+
+  .section-copy {
+    margin-top: 10px;
+    font-size: 0.92rem;
+    line-height: 1.55;
+  }
+
+  .workspace-summary {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .meta-card {
+    min-height: 62px;
+    padding: 10px 12px;
+    border-radius: 18px;
+  }
+
+  .meta-card strong {
+    font-size: 0.9rem;
+  }
+
+  .panel-header,
+  .panel-body {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .panel-header {
+    flex-direction: column;
+  }
+
+  .panel-action,
+  .panel-action .button {
+    width: 100%;
   }
 
   .meta-card,
@@ -1861,29 +2007,229 @@ textarea:focus {
   }
 
   .field-row,
-  .inline-actions,
-  .topbar-meta {
+  .inline-actions {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .network-select,
-  .wallet-connect,
-  .wallet-menu-wrap {
-    width: 100%;
   }
 
   .network-menu,
   .wallet-menu {
     left: 0;
     right: auto;
-    width: 100%;
+    width: min(250px, calc(100vw - 40px));
+  }
+
+  .wallet-menu {
+    left: auto;
+    right: 0;
+    width: min(240px, calc(100vw - 40px));
   }
 
   .button,
   .topbar-button,
   .back-button {
     width: 100%;
+  }
+
+  .back-button.back-icon-button {
+    width: 40px;
+  }
+
+  .panel:hover,
+  .record-card:hover,
+  .nested-card:hover,
+  .entry-card:hover,
+  .meta-card:hover,
+  .empty-state:hover,
+  .loading-state:hover,
+  .artifact-card:hover,
+  .button:hover:not(:disabled) {
+    transform: none;
+  }
+
+  .workspace-content,
+  .agent-grid,
+  .column,
+  .panel,
+  .agent-chat-panel,
+  .agent-chat-history,
+  .agent-zap-composer,
+  .quick-question-shelf,
+  .artifact-detail,
+  .artifact-file-preview {
+    gap: 14px;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .agent-chat-panel {
+    gap: 14px;
+    padding: 18px 12px;
+    border-radius: 24px;
+  }
+
+  .agent-chat-heading h2 {
+    font-size: 1.65rem;
+    letter-spacing: 0;
+  }
+
+  .agent-chat-history,
+  .agent-zap-composer,
+  .quick-question-shelf {
+    width: 100%;
+  }
+
+  .agent-zap-composer {
+    gap: 12px;
+    padding: 14px;
+    border-radius: 22px;
+  }
+
+  .agent-composer-topline {
+    align-items: flex-start;
+  }
+
+  .agent-composer-badge {
+    max-width: calc(100vw - 114px);
+  }
+
+  .agent-zap-composer textarea {
+    min-height: 104px;
+    padding: 4px 2px;
+    font-size: 0.95rem;
+  }
+
+  .agent-composer-footer {
+    gap: 10px;
+    padding-top: 12px;
+  }
+
+  .agent-option-bar {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 38px;
+    border-radius: 18px;
+  }
+
+  .agent-option-bar button {
+    min-width: 0;
+    padding: 6px 8px;
+    font-size: 0.82rem;
+  }
+
+  .agent-option-bar .agent-artifact-add-button {
+    width: 38px;
+    min-width: 38px;
+  }
+
+  .zap-send-button {
+    min-height: 40px;
+  }
+
+  .quick-question-grid.quick-question-shelf {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .quick-question-grid.quick-question-shelf::-webkit-scrollbar {
+    display: none;
+  }
+
+  .quick-question-chip {
+    flex: 0 0 min(72vw, 240px);
+    min-height: 44px;
+  }
+
+  .zap-status-pill {
+    align-items: flex-start;
+    border-radius: 18px;
+    text-align: left;
+  }
+
+  .agent-chat-message {
+    max-width: 100%;
+    padding: 12px;
+    border-radius: 18px;
+    font-size: 0.94rem;
+  }
+
+  .agent-chat-message-user {
+    max-width: 92%;
+  }
+
+  .agent-chat-message-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .chat-formula-block {
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .chat-formula-block code {
+    font-size: 0.82rem;
+  }
+
+  .agent-chat-message-meta {
+    gap: 6px;
+  }
+
+  .agent-chat-message-meta span {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .detail {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .artifact-file-preview {
+    border-radius: 18px;
+  }
+
+  .artifact-file-bar {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .artifact-file-body {
+    max-height: 300px;
+    padding: 14px;
+    font-size: 0.78rem;
+  }
+
+  .artifact-library-card .inline-actions {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 430px) {
+  .agent-option-bar {
+    grid-template-columns: minmax(68px, 0.72fr) minmax(104px, 1fr) 34px;
+    gap: 5px;
+    padding: 5px;
+  }
+
+  .agent-option-bar button:first-child {
+    grid-column: 1 / 2;
+    grid-row: 1;
+  }
+
+  .agent-option-bar button:nth-child(2) {
+    grid-column: 2 / 3;
+    grid-row: 1;
+  }
+
+  .agent-option-bar .agent-artifact-add-button {
+    grid-column: 3 / 4;
+    grid-row: 1;
+    width: 34px;
+    min-width: 34px;
+    height: auto;
   }
 }
 
