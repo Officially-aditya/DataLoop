@@ -6,7 +6,7 @@ import {
   type FormEvent
 } from "react";
 import { AnimatePresence, animate, motion, useMotionValue, useTransform, type PanInfo } from "framer-motion";
-import { Archive, ChevronLeft, FileText, Menu, User, X } from "lucide-react";
+import { Archive, ChevronLeft, FileText, Menu, Plus, User, X } from "lucide-react";
 
 import { Panel } from "../components/Panel";
 import { StatusNotice } from "../components/StatusNotice";
@@ -64,6 +64,21 @@ interface DemoArtifact {
   storage?: AgentArtifactStorageProof;
 }
 
+interface ArtifactCase {
+  id: string;
+  title: string;
+  difficulty: DemoArtifact["difficulty"];
+  tags: string[];
+  questionPattern: string;
+  formulaPattern: string;
+  concepts: string[];
+  answer: string;
+  rawFormula?: string;
+  rawAnswer: string;
+  usageCount: number;
+  benchmarkScore: number;
+}
+
 interface AgentAnswer {
   label: string;
   formula: string;
@@ -81,9 +96,12 @@ interface AgentComparison {
   runId?: string;
 }
 
-interface BackendAgentComparisonState {
+interface AgentChatTurn {
+  id: string;
   question: string;
-  result: AgentComparison;
+  answerMode: AgentAnswerMode;
+  comparison: AgentComparison;
+  createdAt: string;
 }
 
 interface UploadArtifactFormState {
@@ -101,10 +119,12 @@ interface DashboardPageProps {
 const AGENT_LIBRARY_KEY = "dataloop.agent.artifactLibrary";
 const AGENT_UPLOADS_KEY = "dataloop.agent.uploadedArtifacts";
 const DEFAULT_AGENT_ARTIFACT_ID = "excel";
+const ZG_AGENT_ARTIFACT_ID = "0g";
 const DEFAULT_AGENT_QUESTION =
   "In a sales table with dates in A, regions in B, amounts in C, what formula sums sales in 'North' region after 2024-01-01?";
+const DEFAULT_ZG_AGENT_QUESTION = "What is 0G and what are the core components of its stack?";
 
-const EXCEL_ARTIFACT_CASES = [
+const EXCEL_ARTIFACT_CASES: ArtifactCase[] = [
   {
     id: "sumifs-multi-condition",
     title: "SUMIFS with multiple criteria",
@@ -192,6 +212,89 @@ const EXCEL_ARTIFACT_CASES = [
   }
 ];
 
+const ZG_ARTIFACT_CASES: ArtifactCase[] = [
+  {
+    id: "0g-stack-overview",
+    title: "0G stack overview",
+    difficulty: "easy",
+    tags: ["0g", "zero gravity", "deaios", "ai agents", "modular stack"],
+    questionPattern: DEFAULT_ZG_AGENT_QUESTION,
+    formulaPattern: "",
+    concepts: ["0G", "decentralized AI operating system", "Chain", "Compute", "Storage", "Data Availability"],
+    answer:
+      "0G is positioned as the blockchain for AI agents: a modular, AI-first stack for verifiable compute, decentralized storage, high-speed data availability, and onchain AI services. Its core stack includes 0G Chain, Compute Network, Storage, Data Availability, Service Marketplace, Alignment Nodes, and dApps.\n\nSources: https://0g.ai/ and https://docs.0g.ai/developer-hub/getting-started",
+    rawAnswer:
+      "0G is a blockchain project for decentralized AI, combining chain, storage, compute, and data availability. The raw answer may miss exact product naming or current docs details.",
+    usageCount: 362,
+    benchmarkScore: 0.93
+  },
+  {
+    id: "0g-chain-galileo",
+    title: "0G Chain and Galileo testnet",
+    difficulty: "medium",
+    tags: ["0g", "chain", "galileo", "testnet", "evm", "rpc", "faucet"],
+    questionPattern: "How do I configure or describe 0G Chain on the Galileo testnet?",
+    formulaPattern: "",
+    concepts: ["0G Chain", "EVM compatibility", "Galileo testnet", "Chain ID 16602", "testnet RPC"],
+    answer:
+      "0G Chain is an EVM-compatible, AI-optimized L1 with separated consensus and execution layers. The Galileo testnet network name is 0G-Galileo-Testnet, Chain ID is 16602, token symbol is 0G, explorer is https://chainscan-galileo.0g.ai, and the development RPC is https://evmrpc-testnet.0g.ai. Test tokens come from the official 0G faucet or Google Cloud faucet, with the docs noting a 0.1 0G daily wallet limit.\n\nSources: https://docs.0g.ai/concepts/chain and https://docs.0g.ai/developer-hub/testnet/testnet-overview",
+    rawAnswer:
+      "0G Chain is an EVM-compatible AI blockchain. For Galileo, use the current docs because chain IDs, RPCs, and contract addresses can change.",
+    usageCount: 289,
+    benchmarkScore: 0.91
+  },
+  {
+    id: "0g-storage-sdk",
+    title: "0G Storage and SDK",
+    difficulty: "medium",
+    tags: ["0g", "storage", "sdk", "turbo", "indexer", "pora", "erasure coding"],
+    questionPattern: "How does 0G Storage work and how do I start with the storage SDK?",
+    formulaPattern: "",
+    concepts: ["0G Storage", "erasure coding", "Proof of Random Access", "TypeScript SDK", "Turbo indexer"],
+    answer:
+      "0G Storage is a decentralized storage layer built for AI and Web3 workloads. The docs describe a data publishing lane for metadata and proofs, plus a storage lane where data is erasure-coded, split into chunks, and replicated. Storage providers are checked through Proof of Random Access. For TypeScript, install `@0gfoundation/0g-storage-ts-sdk` with `ethers`; the docs show the testnet RPC `https://evmrpc-testnet.0g.ai` and Turbo indexer `https://indexer-storage-testnet-turbo.0g.ai`. Save the returned Merkle root because it is needed to download later.\n\nSources: https://docs.0g.ai/concepts/storage and https://docs.0g.ai/developer-hub/building-on-0g/storage/sdk",
+    rawAnswer:
+      "0G Storage stores data across decentralized nodes and has SDKs for upload/download. The raw answer may omit current endpoint or proof details.",
+    usageCount: 334,
+    benchmarkScore: 0.92
+  },
+  {
+    id: "0g-compute-inference",
+    title: "0G Compute inference",
+    difficulty: "medium",
+    tags: ["0g", "compute", "inference", "gpu marketplace", "cli", "sdk", "tee"],
+    questionPattern: "How do I use 0G Compute for inference?",
+    formulaPattern: "",
+    concepts: ["0G Compute", "inference", "GPU marketplace", "CLI", "SDK", "TEE verification"],
+    answer:
+      "0G Compute is a decentralized GPU marketplace for AI workloads. For inference, the docs offer hosted UIs at compute-marketplace.0g.ai/inference and pc.0g.ai Advanced mode, plus local CLI/SDK flows. The CLI path installs `@0gfoundation/0g-compute-ts-sdk`, runs `0g-compute-cli setup-network`, logs in with a wallet, deposits funds, lists providers, verifies provider TEE status, and then sends inference requests.\n\nSources: https://docs.0g.ai/concepts/compute and https://docs.0g.ai/developer-hub/building-on-0g/compute-network/inference",
+    rawAnswer:
+      "0G Compute provides decentralized AI inference through providers. A generic answer may not include the current CLI commands or hosted entry points.",
+    usageCount: 271,
+    benchmarkScore: 0.9
+  },
+  {
+    id: "0g-da",
+    title: "0G Data Availability",
+    difficulty: "medium",
+    tags: ["0g", "data availability", "da", "rollups", "throughput", "galileo"],
+    questionPattern: "What is 0G DA and when should a developer use it?",
+    formulaPattern: "",
+    concepts: ["0G DA", "data availability", "horizontal scalability", "rollups", "50 Gbps Galileo"],
+    answer:
+      "0G DA is the data availability layer for proving data is accessible, verifiable, and retrievable without forcing every node to receive all data. The docs emphasize built-in storage integration, a modular architecture that decouples storage/DA/consensus, horizontal scalability through additional consensus networks, and demonstrated 50 Gbps throughput on Galileo. It is relevant for rollups, shared sequencers, AI agents, gaming, DeFi, and other high-throughput workloads.\n\nSources: https://docs.0g.ai/concepts/da and https://0g.ai/faq",
+    rawAnswer:
+      "0G DA is a scalable data availability layer for rollups and AI workloads. The raw answer may miss the Galileo throughput and architecture details.",
+    usageCount: 247,
+    benchmarkScore: 0.91
+  }
+];
+
+const SUGGESTED_AGENT_CASES = [
+  ...EXCEL_ARTIFACT_CASES.slice(0, 2),
+  ...ZG_ARTIFACT_CASES.slice(0, 2)
+];
+
 const MARKETPLACE_ARTIFACTS: DemoArtifact[] = [
   {
     id: "excel",
@@ -210,6 +313,24 @@ const MARKETPLACE_ARTIFACTS: DemoArtifact[] = [
     benchmarkScore:
       EXCEL_ARTIFACT_CASES.reduce((total, artifactCase) => total + artifactCase.benchmarkScore, 0) /
       EXCEL_ARTIFACT_CASES.length
+  },
+  {
+    id: ZG_AGENT_ARTIFACT_ID,
+    title: "0G docs artifact pack",
+    difficulty: "medium",
+    tags: ["0g", "docs", "ai agents", ...uniqueStrings(ZG_ARTIFACT_CASES.flatMap((artifactCase) => artifactCase.tags))],
+    questionPattern: ZG_ARTIFACT_CASES.map((artifactCase) => artifactCase.questionPattern).join("\n"),
+    formulaPattern: "",
+    concepts: uniqueStrings(ZG_ARTIFACT_CASES.flatMap((artifactCase) => artifactCase.concepts)),
+    answer: buildZGArtifactFileBody(),
+    rawAnswer: "The raw model answers from general 0G knowledge without the curated 0G docs artifact pack.",
+    source: "marketplace",
+    creator: "DataLoop",
+    version: "1.0.0",
+    usageCount: ZG_ARTIFACT_CASES.reduce((total, artifactCase) => total + artifactCase.usageCount, 0),
+    benchmarkScore:
+      ZG_ARTIFACT_CASES.reduce((total, artifactCase) => total + artifactCase.benchmarkScore, 0) /
+      ZG_ARTIFACT_CASES.length
   }
 ];
 
@@ -232,7 +353,8 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
   const [selectedMarketplaceArtifactId, setSelectedMarketplaceArtifactId] = useState(DEFAULT_AGENT_ARTIFACT_ID);
   const [libraryIds, setLibraryIds] = useState<string[]>(() => normalizeLibraryIds(readStoredIds(AGENT_LIBRARY_KEY)));
   const [uploadedArtifacts, setUploadedArtifacts] = useState<DemoArtifact[]>(readStoredArtifacts);
-  const [backendAgentComparison, setBackendAgentComparison] = useState<BackendAgentComparisonState | null>(null);
+  const [agentChatHistory, setAgentChatHistory] = useState<AgentChatTurn[]>([]);
+  const [lastAgentArtifactSelection, setLastAgentArtifactSelection] = useState<string[]>([]);
   const [uploadArtifactForm, setUploadArtifactForm] = useState<UploadArtifactFormState>(() =>
     createEmptyUploadArtifactForm()
   );
@@ -377,17 +499,12 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
         .filter((artifact): artifact is DemoArtifact => artifact !== undefined),
     [libraryIds, allArtifacts]
   );
+  const selectedArtifactLabel =
+    libraryArtifacts.length === 1
+      ? libraryArtifacts[0]?.title ?? "Selected artifact"
+      : `${libraryArtifacts[0]?.title ?? "Selected artifact"} +${libraryArtifacts.length - 1}`;
   const selectedMarketplaceArtifact =
     marketplaceArtifacts.find((artifact) => artifact.id === selectedMarketplaceArtifactId) ?? marketplaceArtifacts[0] ?? null;
-  const localAgentComparison = useMemo(
-    () => buildAgentComparison(agentQuestion, libraryArtifacts, marketplaceArtifacts),
-    [agentQuestion, libraryArtifacts, marketplaceArtifacts]
-  );
-  const agentComparison =
-    backendAgentComparison !== null && backendAgentComparison.question === agentQuestion
-      ? backendAgentComparison.result
-      : localAgentComparison;
-  const activeAgentAnswer = agentAnswerMode === "artifact" ? agentComparison.augmented : agentComparison.raw;
   const workspaceTitle = activeWorkspace === "agent" ? "Agent" : "Artifacts";
   const workspaceCopy =
     activeWorkspace === "agent"
@@ -498,7 +615,6 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
   }
 
   async function addArtifactToLibrary(artifactId: string) {
-    setBackendAgentComparison(null);
     setLibraryIds((current) =>
       current.includes(artifactId) ? current : normalizeLibraryIds([artifactId, ...current].slice(0, 12))
     );
@@ -525,7 +641,6 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
   }
 
   async function removeArtifactFromLibrary(artifactId: string) {
-    setBackendAgentComparison(null);
     setLibraryIds((current) => current.filter((candidate) => candidate !== artifactId));
 
     try {
@@ -543,8 +658,61 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
     }
   }
 
+  async function clearAgentArtifactSelection() {
+    if (libraryIds.length === 0) {
+      return;
+    }
+
+    const selectedArtifactIds = [...libraryIds];
+    setLastAgentArtifactSelection(selectedArtifactIds);
+    setLibraryIds([]);
+    setAgentNotice({
+      tone: "neutral",
+      message: "Artifact selection cleared."
+    });
+
+    try {
+      await Promise.all(selectedArtifactIds.map((artifactId) => removeAgentArtifactFromLibrary(artifactId)));
+    } catch (error) {
+      setAgentNotice({
+        tone: "neutral",
+        message: `Artifact selection cleared locally. Backend sync unavailable: ${formatError(error)}`
+      });
+    }
+  }
+
+  function openArtifactSelection() {
+    setActiveWorkspace("artifacts");
+    setActiveArtifactSection("marketplace");
+  }
+
+  function selectRawAgentMode() {
+    setAgentAnswerMode("raw");
+    if (libraryIds.length > 0) {
+      setLastAgentArtifactSelection(libraryIds);
+      setLibraryIds([]);
+      setAgentNotice({
+        tone: "neutral",
+        message: "Raw mode selected. Artifact context removed for new answers."
+      });
+    }
+  }
+
+  function selectArtifactAgentMode() {
+    setAgentAnswerMode("artifact");
+
+    if (libraryIds.length > 0) {
+      return;
+    }
+
+    const artifactIdsToRestore = lastAgentArtifactSelection.length > 0 ? lastAgentArtifactSelection : [DEFAULT_AGENT_ARTIFACT_ID];
+    const normalizedArtifactIds = normalizeLibraryIds(artifactIdsToRestore);
+    setLibraryIds(normalizedArtifactIds);
+    void addArtifactToLibrary(normalizedArtifactIds[0] ?? DEFAULT_AGENT_ARTIFACT_ID);
+  }
+
   function useArtifactWithAgent(artifact: DemoArtifact) {
-    setAgentQuestion(artifact.id === DEFAULT_AGENT_ARTIFACT_ID ? DEFAULT_AGENT_QUESTION : artifact.questionPattern);
+    setAgentQuestion(getDefaultQuestionForArtifact(artifact));
     setActiveWorkspace("agent");
     setAgentAnswerMode("artifact");
     void addArtifactToLibrary(artifact.id);
@@ -559,17 +727,30 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
       return;
     }
 
+    const answerMode = agentAnswerMode;
+    const turnId = createAgentChatTurnId();
+    const optimisticComparison = buildAgentComparison(trimmedQuestion, libraryArtifacts, marketplaceArtifacts);
+
+    setAgentChatHistory((current) => [
+      ...current,
+      {
+        id: turnId,
+        question: trimmedQuestion,
+        answerMode,
+        comparison: optimisticComparison,
+        createdAt: new Date().toISOString()
+      }
+    ]);
     setIsRunningAgent(true);
+    setAgentQuestion("");
     setAgentNotice({ tone: "neutral", message: "Running raw and artifact-backed paths through the backend..." });
 
     try {
       const result = await compareAgentQuestion(trimmedQuestion);
       const comparison = toDemoComparison(result);
-      setBackendAgentComparison({
-        question: trimmedQuestion,
-        result: comparison
-      });
-      setAgentQuestion(trimmedQuestion);
+      setAgentChatHistory((current) =>
+        current.map((turn) => (turn.id === turnId ? { ...turn, comparison } : turn))
+      );
       setAgentNotice(
         result.retrievedArtifacts.length > 0
           ? { tone: "success", message: `Artifact context loaded: ${result.retrievedArtifacts[0]?.title ?? "library artifact"}.` }
@@ -577,7 +758,6 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
       );
     } catch (error) {
       const matchedArtifact = findBestArtifact(trimmedQuestion, libraryArtifacts);
-      setBackendAgentComparison(null);
       setAgentNotice(
         matchedArtifact
           ? {
@@ -621,7 +801,6 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
     }
 
     setIsUploadingAgentArtifact(true);
-    setBackendAgentComparison(null);
 
     try {
       const result = await uploadAgentArtifact({
@@ -844,60 +1023,90 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
           <div>
             <h2>Ask the Agent</h2>
           </div>
-          <span className="library-badge library-badge-on">{libraryArtifacts.length} artifact file(s)</span>
         </div>
 
-        <form className="agent-zap-composer" onSubmit={handleAgentQuestionSubmit}>
-          <textarea
-            value={agentQuestion}
-            onChange={(event) => {
-              setAgentQuestion(event.target.value);
-              setBackendAgentComparison(null);
-            }}
-            placeholder="Ask how to solve an Excel formula problem..."
-          />
-          <div className="quick-question-grid">
-            {EXCEL_ARTIFACT_CASES.slice(0, 4).map((artifactCase) => (
-              <button
-                className="quick-question-chip"
-                key={artifactCase.id}
-                type="button"
-                onClick={() => {
-                  setAgentQuestion(artifactCase.questionPattern);
-                  setBackendAgentComparison(null);
-                }}
-              >
-                {artifactCase.title}
-              </button>
+        {agentChatHistory.length > 0 ? (
+          <div className="agent-chat-history">
+            {agentChatHistory.map((turn) => (
+              <AgentChatTranscript
+                answer={turn.answerMode === "artifact" ? turn.comparison.augmented : turn.comparison.raw}
+                key={turn.id}
+                question={turn.question}
+              />
             ))}
           </div>
+        ) : null}
+
+        <form className="agent-zap-composer" onSubmit={handleAgentQuestionSubmit}>
+          {libraryArtifacts.length > 0 ? (
+            <div className="agent-composer-topline">
+              <div className="agent-composer-artifacts">
+                <span className="library-badge library-badge-on agent-composer-badge">{selectedArtifactLabel}</span>
+                <button
+                  type="button"
+                  className="agent-artifact-clear-button"
+                  onClick={() => {
+                    void clearAgentArtifactSelection();
+                  }}
+                  aria-label="Remove artifact from selection"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+          ) : null}
+          <textarea
+            value={agentQuestion}
+            onChange={(event) => setAgentQuestion(event.target.value)}
+            placeholder="Ask how to solve an Excel formula problem..."
+          />
           <div className="agent-composer-footer">
             <div className="agent-option-bar" role="tablist" aria-label="Answer mode">
               <button
                 type="button"
                 className={agentAnswerMode === "raw" ? "zap-mode-active" : ""}
-                onClick={() => setAgentAnswerMode("raw")}
+                onClick={selectRawAgentMode}
               >
                 Raw LLM
               </button>
               <button
                 type="button"
                 className={agentAnswerMode === "artifact" ? "zap-mode-active" : ""}
-                onClick={() => setAgentAnswerMode("artifact")}
+                onClick={selectArtifactAgentMode}
               >
                 With Artifacts
               </button>
+              <button
+                type="button"
+                className="agent-artifact-add-button"
+                onClick={openArtifactSelection}
+                aria-label="Select artifact"
+              >
+                <Plus size={16} />
+              </button>
             </div>
             <div className="agent-run-actions">
-              <button className="zap-run-button" type="submit" disabled={isRunningAgent}>
-                {isRunningAgent ? "Running..." : "Run Comparison"}
-              </button>
               <button className="zap-send-button" type="submit" disabled={isRunningAgent}>
-                <span>Send</span>
+                <span>{isRunningAgent ? "Running..." : "Send"}</span>
               </button>
             </div>
           </div>
         </form>
+
+        <div className="quick-question-grid quick-question-shelf" aria-label="Suggested agent questions">
+          {SUGGESTED_AGENT_CASES.map((artifactCase) => (
+            <button
+              className="quick-question-chip"
+              key={artifactCase.id}
+              type="button"
+              onClick={() => {
+                setAgentQuestion(artifactCase.questionPattern);
+              }}
+            >
+              {artifactCase.title}
+            </button>
+          ))}
+        </div>
 
         {agentNotice ? (
           <div className={`zap-status-pill zap-status-${agentNotice.tone}`} role="status">
@@ -906,45 +1115,6 @@ export function DashboardPage({ onBackToIntro }: DashboardPageProps) {
           </div>
         ) : null}
       </section>
-
-      <div className="agent-selected-output">
-        <Panel
-          title={activeAgentAnswer.label}
-          eyebrow="Selected Output"
-          action={
-            activeAgentAnswer.artifactIds.length > 0 ? (
-              <button
-                type="button"
-                className="button button-secondary"
-                onClick={() => {
-                  setActiveWorkspace("artifacts");
-                  setActiveArtifactSection("library");
-                }}
-              >
-                View Library
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="button button-secondary"
-                onClick={() => {
-                  setActiveWorkspace("artifacts");
-                  setActiveArtifactSection("marketplace");
-                }}
-              >
-                Add Artifact
-              </button>
-            )
-          }
-        >
-          <AgentAnswerCard answer={activeAgentAnswer} featured />
-        </Panel>
-      </div>
-
-      <div className="answer-comparison-grid">
-        <AgentAnswerCard answer={agentComparison.raw} />
-        <AgentAnswerCard answer={agentComparison.augmented} />
-      </div>
     </div>
   );
 
@@ -1376,41 +1546,58 @@ function ArtifactDetail({ artifact, compact = false }: { artifact: DemoArtifact;
   );
 }
 
-function AgentAnswerCard({ answer, featured = false }: { answer: AgentAnswer; featured?: boolean }) {
+function AgentChatTranscript({ question, answer }: { question: string; answer: AgentAnswer }) {
+  const formula = answer.formula.trim();
+  const explanation = answer.explanation.trim() || "No explanation returned.";
+  const hasFormula = formula.length > 0;
+
   return (
-    <div className={`agent-answer-card ${featured ? "agent-answer-card-featured" : ""}`}>
-      <div className="agent-answer-header">
-        <div>
-          <p className="label">{answer.label}</p>
-          <h3>{answer.matchedArtifactTitle}</h3>
+    <div className="agent-chat-transcript" aria-live="polite">
+      <div className="agent-chat-message agent-chat-message-user">
+        <p>{question}</p>
+      </div>
+
+      <div className={`agent-chat-message agent-chat-message-assistant ${hasFormula ? "" : "agent-chat-message-rich"}`}>
+        <div className="agent-chat-message-header">
+          <span>{answer.label}</span>
+          <span>{Math.round(answer.confidence * 100)}%</span>
         </div>
-        <span className="confidence-pill">{Math.round(answer.confidence * 100)}%</span>
+        {hasFormula ? (
+          <>
+            <pre className="chat-formula-block">
+              <code>{formula}</code>
+            </pre>
+            <div className="chat-answer-copy">
+              <ChatAnswerText text={explanation} />
+            </div>
+          </>
+        ) : (
+          <div className="chat-answer-block">
+            <ChatAnswerText text={explanation} />
+          </div>
+        )}
+        <div className="agent-chat-message-meta">
+          <span>{answer.matchedArtifactTitle}</span>
+          <span>{answer.artifactIds.length > 0 ? `${answer.artifactIds.length} artifact used` : "No artifact context"}</span>
+          {answer.artifactIds.length > 0 ? <span className="mono-text">{shortId(answer.artifactIds[0] ?? "")}</span> : null}
+        </div>
       </div>
-
-      <div className="agent-answer-body">
-        <pre className="formula-block">
-          <code>{answer.formula || "No formula returned"}</code>
-        </pre>
-        <p>{answer.explanation}</p>
-      </div>
-
-      <div className="agent-answer-footer">
-        <span>{answer.artifactIds.length > 0 ? `${answer.artifactIds.length} artifact used` : "No artifact context"}</span>
-        {answer.artifactIds.length > 0 ? <span className="mono-text">{shortId(answer.artifactIds[0] ?? "")}</span> : null}
-      </div>
-      {answer.provider ? <ProviderStatus provider={answer.provider} /> : null}
     </div>
   );
 }
 
-function ProviderStatus({ provider }: { provider: AgentProviderStatus }) {
+function ChatAnswerText({ text }: { text: string }) {
+  const paragraphs = text
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter((paragraph) => paragraph.length > 0);
+
   return (
-    <div className="provider-status">
-      <span>{provider.mode === "0g-compute" ? "0G Compute" : "Mock"}</span>
-      <span>{provider.modelName}</span>
-      {provider.traceId ? <span className="mono-text">{shortId(provider.traceId)}</span> : null}
-      {provider.errorMessage ? <span>{provider.errorMessage}</span> : null}
-    </div>
+    <>
+      {paragraphs.map((paragraph, index) => (
+        <p key={`${index}-${paragraph.slice(0, 24)}`}>{paragraph}</p>
+      ))}
+    </>
   );
 }
 
@@ -1581,12 +1768,16 @@ function writeStoredIds(key: string, ids: string[]) {
 
 function normalizeLibraryIds(ids: string[]) {
   const uploadIds = ids.filter((id) => id.startsWith("upload-"));
-  const hasDomainPack = ids.includes(DEFAULT_AGENT_ARTIFACT_ID);
+  const marketplaceIds = ids.filter((id) => id === DEFAULT_AGENT_ARTIFACT_ID || id === ZG_AGENT_ARTIFACT_ID);
   const hasLegacyExcelArtifact = ids.some((id) => EXCEL_ARTIFACT_CASES.some((artifactCase) => artifactCase.id === id));
+  const normalizedMarketplaceIds = uniqueStrings([
+    ...marketplaceIds,
+    ...(hasLegacyExcelArtifact ? [DEFAULT_AGENT_ARTIFACT_ID] : [])
+  ]);
 
-  return hasDomainPack || hasLegacyExcelArtifact || ids.length === 0
+  return ids.length === 0
     ? [DEFAULT_AGENT_ARTIFACT_ID, ...uploadIds]
-    : uploadIds;
+    : [...normalizedMarketplaceIds, ...uploadIds];
 }
 
 function readStoredArtifacts() {
@@ -1615,6 +1806,12 @@ function writeStoredArtifacts(artifacts: DemoArtifact[]) {
   if (typeof window !== "undefined") {
     window.localStorage.setItem(AGENT_UPLOADS_KEY, JSON.stringify(artifacts));
   }
+}
+
+function createAgentChatTurnId() {
+  const randomId = globalThis.crypto?.randomUUID?.();
+
+  return randomId ?? `turn-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function isDemoArtifact(value: unknown): value is DemoArtifact {
@@ -1660,14 +1857,15 @@ function buildAgentComparison(
 ): AgentComparison {
   const marketplaceMatch = findBestArtifact(question, marketplaceArtifacts);
   const libraryMatch = findBestArtifact(question, libraryArtifacts);
-  const excelCase = findBestExcelArtifactCase(question);
+  const marketplaceCase = findBestArtifactCase(question, marketplaceMatch);
+  const libraryCase = findBestArtifactCase(question, libraryMatch);
   const raw: AgentAnswer = {
     label: "Raw LLM",
-    formula: excelCase?.rawFormula ?? marketplaceMatch?.rawFormula ?? "",
+    formula: marketplaceCase?.rawFormula ?? marketplaceMatch?.rawFormula ?? "",
     explanation:
-      excelCase?.rawAnswer ??
+      marketplaceCase?.rawAnswer ??
       marketplaceMatch?.rawAnswer ??
-      "The raw model gives a general Excel answer, but no curated artifact is available for this exact pattern.",
+      "The raw model gives a general answer, but no curated artifact is available for this exact pattern.",
     confidence: marketplaceMatch ? 0.74 : 0.58,
     artifactIds: [],
     matchedArtifactTitle: marketplaceMatch?.title ?? "General response"
@@ -1675,8 +1873,8 @@ function buildAgentComparison(
   const augmented: AgentAnswer = libraryMatch
     ? {
         label: "With Artifacts",
-        formula: libraryMatch.id === DEFAULT_AGENT_ARTIFACT_ID ? excelCase?.formulaPattern ?? "" : libraryMatch.formulaPattern,
-        explanation: libraryMatch.id === DEFAULT_AGENT_ARTIFACT_ID ? excelCase?.answer ?? libraryMatch.answer : libraryMatch.answer,
+        formula: libraryCase?.formulaPattern ?? libraryMatch.formulaPattern,
+        explanation: libraryCase?.answer ?? libraryMatch.answer,
         confidence: 0.93,
         artifactIds: [libraryMatch.id],
         matchedArtifactTitle: libraryMatch.title
@@ -1709,14 +1907,45 @@ const excelSearchPatterns: Array<{ term: string; pattern: RegExp }> = [
   { term: "criteria operator", pattern: /(?:>=|<=|<>|>|<|=)/ }
 ];
 
-function findBestExcelArtifactCase(question: string) {
+const zgSearchPatterns: Array<{ term: string; pattern: RegExp }> = [
+  { term: "0g", pattern: /\b(?:0g|zero\s+gravity|ø?g)\b/i },
+  { term: "stack", pattern: /\b(?:stack|component|components|architecture|modular|deaios|operating\s+system)\b/i },
+  { term: "chain", pattern: /\b(?:chain|evm|l1|consensus|execution|cometbft|tps|finality)\b/i },
+  { term: "galileo", pattern: /\b(?:galileo|testnet|chain\s*id|16602|faucet|rpc|explorer)\b/i },
+  { term: "storage", pattern: /\b(?:storage|sdk|indexer|turbo|merkle|root|pora|erasure|download|upload)\b/i },
+  { term: "compute", pattern: /\b(?:compute|inference|gpu|provider|cli|sdk|tee|model|marketplace)\b/i },
+  { term: "da", pattern: /\b(?:data\s+availability|\bda\b|rollup|shared\s+sequencer|throughput|50\s*gbps)\b/i }
+];
+
+function findBestArtifactCase(question: string, artifact: DemoArtifact | null) {
+  if (artifact === null) {
+    return null;
+  }
+
+  if (artifact.id === DEFAULT_AGENT_ARTIFACT_ID) {
+    return findBestCase(question, EXCEL_ARTIFACT_CASES, extractExcelSearchTerms, 3);
+  }
+
+  if (artifact.id === ZG_AGENT_ARTIFACT_ID) {
+    return findBestCase(question, ZG_ARTIFACT_CASES, extractZGSearchTerms, 2);
+  }
+
+  return null;
+}
+
+function findBestCase(
+  question: string,
+  artifactCases: ArtifactCase[],
+  extractSearchTerms: (value: string) => Set<string>,
+  scoreThreshold: number
+) {
   const queryTokens = tokenizeAgentText(question);
-  const searchTerms = extractExcelSearchTerms(question);
-  let bestCase: (typeof EXCEL_ARTIFACT_CASES)[number] | null = null;
+  const searchTerms = extractSearchTerms(question);
+  let bestCase: ArtifactCase | null = null;
   let bestScore = 0;
 
-  for (const artifactCase of EXCEL_ARTIFACT_CASES) {
-    const score = scoreExcelArtifactCase(queryTokens, searchTerms, artifactCase);
+  for (const artifactCase of artifactCases) {
+    const score = scoreArtifactCase(queryTokens, searchTerms, artifactCase, extractSearchTerms);
 
     if (score > bestScore) {
       bestCase = artifactCase;
@@ -1724,13 +1953,14 @@ function findBestExcelArtifactCase(question: string) {
     }
   }
 
-  return bestScore >= 3 ? bestCase : null;
+  return bestScore >= scoreThreshold ? bestCase : null;
 }
 
-function scoreExcelArtifactCase(
+function scoreArtifactCase(
   queryTokens: Set<string>,
   querySearchTerms: Set<string>,
-  artifactCase: (typeof EXCEL_ARTIFACT_CASES)[number]
+  artifactCase: ArtifactCase,
+  extractSearchTerms: (value: string) => Set<string>
 ) {
   const candidateText = [
     artifactCase.title,
@@ -1741,7 +1971,7 @@ function scoreExcelArtifactCase(
     artifactCase.answer
   ].join(" ");
   const candidateTokens = tokenizeAgentText(candidateText);
-  const candidateSearchTerms = extractExcelSearchTerms(candidateText);
+  const candidateSearchTerms = extractSearchTerms(candidateText);
   let score = countAgentTokenOverlap(queryTokens, candidateTokens);
 
   for (const term of querySearchTerms) {
@@ -1777,16 +2007,37 @@ function extractExcelSearchTerms(value: string) {
   return terms;
 }
 
+function extractZGSearchTerms(value: string) {
+  const terms = new Set<string>();
+
+  for (const { term, pattern } of zgSearchPatterns) {
+    if (pattern.test(value)) {
+      terms.add(term);
+    }
+  }
+
+  return terms;
+}
+
 function findBestArtifact(question: string, artifacts: DemoArtifact[]) {
   const queryTokens = tokenizeAgentText(question);
   let bestArtifact: DemoArtifact | null = null;
   let bestScore = 0;
 
   for (const artifact of artifacts) {
+    const candidateText =
+      `${artifact.title} ${artifact.questionPattern} ${artifact.formulaPattern} ${artifact.concepts.join(" ")} ${artifact.tags.join(" ")}`;
     const candidateTokens = tokenizeAgentText(
-      `${artifact.title} ${artifact.questionPattern} ${artifact.formulaPattern} ${artifact.concepts.join(" ")} ${artifact.tags.join(" ")}`
+      candidateText
     );
-    const score = countAgentTokenOverlap(queryTokens, candidateTokens);
+    let score = countAgentTokenOverlap(queryTokens, candidateTokens);
+
+    if (
+      artifact.id === ZG_AGENT_ARTIFACT_ID &&
+      /\b(?:0g|zero\s+gravity|deaios|galileo|data\s+availability|compute|storage)\b/i.test(question)
+    ) {
+      score += 3;
+    }
 
     if (score > bestScore) {
       bestArtifact = artifact;
@@ -1802,7 +2053,11 @@ function tokenizeAgentText(value: string) {
     value
       .toLowerCase()
       .split(/[^a-z0-9]+/g)
-      .filter((token) => token.length >= 4 && !["with", "from", "what", "where", "when", "into"].includes(token))
+      .filter(
+        (token) =>
+          (token.length >= 4 || token === "0g" || token === "da") &&
+          !["with", "from", "what", "where", "when", "into"].includes(token)
+      )
   );
 }
 
@@ -1823,6 +2078,10 @@ function artifactFileName(artifact: DemoArtifact) {
     return "excel.md";
   }
 
+  if (artifact.id === ZG_AGENT_ARTIFACT_ID) {
+    return "0g.md";
+  }
+
   return `${artifact.id}.artifact.md`;
 }
 
@@ -1838,7 +2097,7 @@ function formatArtifactFileSize(content: string) {
 
 function buildArtifactFileBody(artifact: DemoArtifact) {
   const artifactContent =
-    artifact.id === DEFAULT_AGENT_ARTIFACT_ID
+    artifact.id === DEFAULT_AGENT_ARTIFACT_ID || artifact.id === ZG_AGENT_ARTIFACT_ID
       ? artifact.answer
       : [
           `# ${artifact.title}`,
@@ -1867,7 +2126,7 @@ function buildArtifactFileBody(artifact: DemoArtifact) {
     "---",
     `id: ${artifact.id}`,
     `title: ${artifact.title}`,
-    "domain: excel",
+    `domain: ${artifact.id === ZG_AGENT_ARTIFACT_ID ? "0g" : "excel"}`,
     `source: ${artifact.source}`,
     `version: ${artifact.version ?? "local"}`,
     `difficulty: ${artifact.difficulty}`,
@@ -1895,7 +2154,7 @@ function buildExcelArtifactFileBody() {
   ].join("\n");
 }
 
-function renderExcelArtifactCase(artifactCase: (typeof EXCEL_ARTIFACT_CASES)[number], index: number) {
+function renderExcelArtifactCase(artifactCase: ArtifactCase, index: number) {
   return [
     `### ${index + 1}. ${artifactCase.title}`,
     "",
@@ -1912,6 +2171,44 @@ function renderExcelArtifactCase(artifactCase: (typeof EXCEL_ARTIFACT_CASES)[num
     "",
     `Raw baseline: ${artifactCase.rawAnswer}`
   ].join("\n");
+}
+
+function buildZGArtifactFileBody() {
+  return [
+    "# 0G Docs Artifact Pack",
+    "",
+    "A DataLoop artifact file containing 0G website and documentation Q&A for the agent benchmark.",
+    "",
+    "## Questions",
+    "",
+    ZG_ARTIFACT_CASES.map(renderZGArtifactCase).join("\n\n")
+  ].join("\n");
+}
+
+function renderZGArtifactCase(artifactCase: ArtifactCase, index: number) {
+  return [
+    `### ${index + 1}. ${artifactCase.title}`,
+    "",
+    `Question: ${artifactCase.questionPattern}`,
+    "",
+    `Concepts: ${artifactCase.concepts.join(", ")}`,
+    "",
+    `Answer: ${artifactCase.answer}`,
+    "",
+    `Raw baseline: ${artifactCase.rawAnswer}`
+  ].join("\n");
+}
+
+function getDefaultQuestionForArtifact(artifact: DemoArtifact) {
+  if (artifact.id === DEFAULT_AGENT_ARTIFACT_ID) {
+    return DEFAULT_AGENT_QUESTION;
+  }
+
+  if (artifact.id === ZG_AGENT_ARTIFACT_ID) {
+    return DEFAULT_ZG_AGENT_QUESTION;
+  }
+
+  return artifact.questionPattern;
 }
 
 function optionalField(key: string, value: string) {

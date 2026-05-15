@@ -40,7 +40,7 @@ export interface AgentArtifactStorageProof {
 export interface AgentArtifactResource {
   id: string;
   title: string;
-  domain: "excel";
+  domain: "excel" | "0g";
   difficulty: AgentArtifactDifficulty;
   tags: string[];
   questionPattern: string;
