@@ -12,6 +12,10 @@ packages/contracts/cache/
 *.log
 *.md
 !README.md
+ui.md
+website.md
+design.md
+design22.md
 *.tsbuildinfo
 DataLoop_3_Week_Build_Path_Detailed.docx
 FINE_TUNING_VS_MARKDOWN_APPROACH.md
