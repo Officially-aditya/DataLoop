@@ -1,6 +1,6 @@
-# DataLoop
+# Neura
 
-DataLoop is an agent artifact platform for comparing raw 0G Compute answers with artifact-grounded answers backed by 0G Storage.
+Neura is an agent artifact platform for comparing raw 0G Compute answers with artifact-grounded answers backed by 0G Storage.
 
 ## Target network
 

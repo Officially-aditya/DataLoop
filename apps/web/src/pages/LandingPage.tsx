@@ -33,7 +33,7 @@ const navigationItems = [
   {
     label: "Demo",
     href: "#demo",
-    summary: "ExcelMind shows how corrections become reusable agent improvement material.",
+    summary: "Neura shows how corrections become reusable agent improvement material.",
     meta: "Product"
   },
   {

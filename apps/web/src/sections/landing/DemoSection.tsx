@@ -13,7 +13,7 @@ export function DemoSection({ onLaunchApp }: DemoSectionProps) {
         <Reveal>
           <SectionHeading
             kicker="Product Demo"
-            title="ExcelMind shows the loop end to end"
+            title="Neura shows the loop end to end"
             copy="The existing Neura dashboard already includes an agent artifact workspace. The landing page now points users directly into that product surface."
           />
         </Reveal>
@@ -21,7 +21,7 @@ export function DemoSection({ onLaunchApp }: DemoSectionProps) {
         <div className="landing-demo-grid">
           <Reveal className="landing-terminal landing-terminal-baseline">
             <div className="landing-terminal-top">
-              <span>Terminal: ExcelMind v1.0</span>
+              <span>Terminal: Neura v1.0</span>
               <strong>Baseline</strong>
             </div>
             <div className="landing-terminal-body">
@@ -37,7 +37,7 @@ export function DemoSection({ onLaunchApp }: DemoSectionProps) {
 
           <Reveal className="landing-terminal landing-terminal-tuned" delay="short">
             <div className="landing-terminal-top">
-              <span>Terminal: ExcelMind v2.1</span>
+              <span>Terminal: Neura v2.1</span>
               <strong>Fine-tuned</strong>
             </div>
             <div className="landing-terminal-body">
