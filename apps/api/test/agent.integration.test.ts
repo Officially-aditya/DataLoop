@@ -46,10 +46,15 @@ test("agent routes expose marketplace, library install, upload, and comparison f
 
   assert.equal(marketplaceResponse.statusCode, 200);
   const marketplaceBody = marketplaceResponse.json();
-  assert.equal(marketplaceBody.data.artifacts.length, 1);
-  assert.equal(marketplaceBody.data.artifacts[0].id, "excel");
-  assert.match(marketplaceBody.data.artifacts[0].answer, /SUMIFS with multiple criteria/);
-  assert.match(marketplaceBody.data.artifacts[0].answer, /Basic XLOOKUP lookup/);
+  assert.equal(marketplaceBody.data.artifacts.length, 2);
+  const excelArtifact = marketplaceBody.data.artifacts.find((artifact: { id: string }) => artifact.id === "excel");
+  const zgArtifact = marketplaceBody.data.artifacts.find((artifact: { id: string }) => artifact.id === "0g");
+  assert.ok(excelArtifact);
+  assert.ok(zgArtifact);
+  assert.match(excelArtifact.answer, /SUMIFS with multiple criteria/);
+  assert.match(excelArtifact.answer, /Basic XLOOKUP lookup/);
+  assert.match(zgArtifact.answer, /0G Chain and Galileo testnet/);
+  assert.match(zgArtifact.answer, /0G Compute inference/);
 
   const initialLibraryResponse = await app.inject({
     method: "GET",
@@ -99,6 +104,31 @@ test("agent routes expose marketplace, library install, upload, and comparison f
   const regexSearchCompareBody = regexSearchCompareResponse.json();
   assert.equal(regexSearchCompareBody.data.augmented.artifactIds[0], "excel");
   assert.match(regexSearchCompareBody.data.augmented.formula, /VALUE/);
+
+  const addZGResponse = await app.inject({
+    method: "POST",
+    url: "/v1/agent/library/artifacts",
+    payload: {
+      artifactId: "0g"
+    }
+  });
+
+  assert.equal(addZGResponse.statusCode, 200);
+  assert.equal(addZGResponse.json().data.library[0].id, "0g");
+
+  const zgCompareResponse = await app.inject({
+    method: "POST",
+    url: "/v1/agent/compare",
+    payload: {
+      question: "What is 0G DA and when should a developer use it?"
+    }
+  });
+
+  assert.equal(zgCompareResponse.statusCode, 200);
+  const zgCompareBody = zgCompareResponse.json();
+  assert.equal(zgCompareBody.data.augmented.artifactIds[0], "0g");
+  assert.equal(zgCompareBody.data.augmented.formula, "");
+  assert.match(zgCompareBody.data.augmented.explanation, /50 Gbps/);
 
   const uploadResponse = await app.inject({
     method: "POST",

@@ -172,9 +172,7 @@ export function getApiConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       modelApiKey: optionalEnv(env.API_AGENT_MODEL_API_KEY ?? env.AGENT_MODEL_API_KEY),
       requestTeeVerification: parseBoolean(env.API_AGENT_VERIFY_TEE ?? env.AGENT_VERIFY_TEE),
       storage: {
-        enabled: parseBoolean(
-          env.API_AGENT_STORAGE_ENABLED ?? env.AGENT_STORAGE_ENABLED ?? (storagePrivateKey === null ? "false" : "true")
-        ),
+        enabled: parseBoolean(env.API_AGENT_STORAGE_ENABLED ?? env.AGENT_STORAGE_ENABLED),
         network: storageNetwork,
         mode: storageMode,
         rpcUrl:

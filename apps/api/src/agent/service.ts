@@ -2,7 +2,12 @@ import { randomUUID } from "node:crypto";
 
 import type { AgentRuntimeConfig } from "../config";
 import { ApiError } from "../errors";
-import { excelArtifactCases, marketplaceArtifacts, type ExcelArtifactCase } from "./marketplace";
+import {
+  excelArtifactCases,
+  marketplaceArtifacts,
+  zgArtifactCases,
+  type KnowledgeArtifactCase
+} from "./marketplace";
 import { AgentArtifactStorage } from "./storage";
 import type {
   AgentAnswerResource,
@@ -208,21 +213,22 @@ export class AgentService {
     question: string,
     marketplaceMatch: AgentArtifactResource | null
   ): Promise<ModelAnswer> {
-    const matchedCase = findBestExcelCase(question)?.artifactCase ?? null;
+    const matchedCase = findBestArtifactCase(question, marketplaceMatch)?.artifactCase ?? null;
     const fallback: ModelAnswer = {
       formula: matchedCase?.rawFormula ?? marketplaceMatch?.rawFormula ?? "",
       explanation:
         matchedCase?.rawAnswer ??
         marketplaceMatch?.rawAnswer ??
-        "The raw model gives a general Excel answer, but no curated artifact is available for this exact pattern.",
+        "The raw model gives a general answer, but no curated artifact is available for this exact pattern.",
       confidence: marketplaceMatch === null ? 0.58 : 0.74,
       provider: this.mockProviderStatus()
     };
 
     return this.callConfiguredModel(
       [
-        "You are an Excel assistant.",
+        "You are a concise technical Q&A assistant.",
         "Answer as JSON with formula, explanation, and confidence fields.",
+        "Leave formula empty unless the user explicitly asks for a formula or command.",
         "Do not use private artifact context."
       ].join(" "),
       question,
@@ -231,8 +237,8 @@ export class AgentService {
   }
 
   private async answerWithArtifact(question: string, artifact: AgentArtifactResource): Promise<ModelAnswer> {
-    const excelMatch = artifact.id === "excel" ? findBestExcelCase(question) : null;
-    const matchedCase = excelMatch?.artifactCase ?? null;
+    const artifactMatch = findBestArtifactCase(question, artifact);
+    const matchedCase = artifactMatch?.artifactCase ?? null;
     const fallback: ModelAnswer = {
       formula: matchedCase?.formulaPattern ?? artifact.formulaPattern,
       explanation: matchedCase?.answer ?? artifact.answer,
@@ -242,24 +248,25 @@ export class AgentService {
 
     return this.callConfiguredModel(
       [
-        "You are an Excel assistant.",
+        "You are a concise technical Q&A assistant.",
         "Use the provided DataLoop artifact as the primary source of truth.",
         "Answer as JSON with formula, explanation, and confidence fields.",
-        `Artifact file: ${artifact.id === "excel" ? "excel.md" : `${artifact.id}.artifact.md`}`,
+        "Leave formula empty unless the artifact section provides a formula or command.",
+        `Artifact file: ${artifact.id === "excel" ? "excel.md" : artifact.id === "0g" ? "0g.md" : `${artifact.id}.artifact.md`}`,
         `Artifact title: ${artifact.title}`,
         `Question pattern: ${artifact.questionPattern}`,
         `Formula pattern: ${artifact.formulaPattern || "none"}`,
         `Concepts: ${artifact.concepts.join(", ") || "none"}`,
-        excelMatch === null
+        artifactMatch === null
           ? `Artifact content:\n${artifact.answer}`
           : [
-              `Regex retrieval terms: ${excelMatch.searchTerms.join(", ") || "none"}`,
-              "Matched excel.md section:",
-              `Title: ${excelMatch.artifactCase.title}`,
-              `Question pattern: ${excelMatch.artifactCase.questionPattern}`,
-              `Formula pattern: ${excelMatch.artifactCase.formulaPattern || "none"}`,
-              `Concepts: ${excelMatch.artifactCase.concepts.join(", ") || "none"}`,
-              `Artifact answer: ${excelMatch.artifactCase.answer}`
+              `Retrieval terms: ${artifactMatch.searchTerms.join(", ") || "none"}`,
+              `Matched ${artifact.id === "excel" ? "excel.md" : artifact.id === "0g" ? "0g.md" : `${artifact.id}.artifact.md`} section:`,
+              `Title: ${artifactMatch.artifactCase.title}`,
+              `Question pattern: ${artifactMatch.artifactCase.questionPattern}`,
+              `Formula pattern: ${artifactMatch.artifactCase.formulaPattern || "none"}`,
+              `Concepts: ${artifactMatch.artifactCase.concepts.join(", ") || "none"}`,
+              `Artifact answer: ${artifactMatch.artifactCase.answer}`
             ].join("\n")
       ].join("\n"),
       question,
@@ -440,10 +447,16 @@ function findBestArtifact(question: string, artifacts: AgentArtifactResource[]) 
   let bestScore = 0;
 
   for (const artifact of artifacts) {
+    const candidateText =
+      `${artifact.title} ${artifact.questionPattern} ${artifact.formulaPattern} ${artifact.concepts.join(" ")} ${artifact.tags.join(" ")}`;
     const candidateTokens = tokenizeAgentText(
-      `${artifact.title} ${artifact.questionPattern} ${artifact.formulaPattern} ${artifact.concepts.join(" ")} ${artifact.tags.join(" ")}`
+      candidateText
     );
-    const score = countAgentTokenOverlap(queryTokens, candidateTokens);
+    let score = countAgentTokenOverlap(queryTokens, candidateTokens);
+
+    if (artifact.id === "0g" && /\b(?:0g|zero\s+gravity|deaios|galileo|data\s+availability|compute|storage)\b/i.test(question)) {
+      score += 3;
+    }
 
     if (score > bestScore) {
       bestArtifact = artifact;
@@ -454,8 +467,8 @@ function findBestArtifact(question: string, artifacts: AgentArtifactResource[]) 
   return bestScore >= 2 ? bestArtifact : null;
 }
 
-interface ExcelCaseMatch {
-  artifactCase: ExcelArtifactCase;
+interface ArtifactCaseMatch {
+  artifactCase: KnowledgeArtifactCase;
   score: number;
   searchTerms: string[];
 }
@@ -476,14 +489,45 @@ const excelSearchPatterns: Array<{ term: string; pattern: RegExp }> = [
   { term: "criteria operator", pattern: /(?:>=|<=|<>|>|<|=)/ }
 ];
 
-function findBestExcelCase(question: string): ExcelCaseMatch | null {
+const zgSearchPatterns: Array<{ term: string; pattern: RegExp }> = [
+  { term: "0g", pattern: /\b(?:0g|zero\s+gravity|ø?g)\b/i },
+  { term: "stack", pattern: /\b(?:stack|component|components|architecture|modular|deaios|operating\s+system)\b/i },
+  { term: "chain", pattern: /\b(?:chain|evm|l1|consensus|execution|cometbft|tps|finality)\b/i },
+  { term: "galileo", pattern: /\b(?:galileo|testnet|chain\s*id|16602|faucet|rpc|explorer)\b/i },
+  { term: "storage", pattern: /\b(?:storage|sdk|indexer|turbo|merkle|root|pora|erasure|download|upload)\b/i },
+  { term: "compute", pattern: /\b(?:compute|inference|gpu|provider|cli|sdk|tee|model|marketplace)\b/i },
+  { term: "da", pattern: /\b(?:data\s+availability|\bda\b|rollup|shared\s+sequencer|throughput|50\s*gbps)\b/i }
+];
+
+function findBestArtifactCase(question: string, artifact: AgentArtifactResource | null): ArtifactCaseMatch | null {
+  if (artifact === null) {
+    return null;
+  }
+
+  if (artifact.id === "excel") {
+    return findBestCase(question, excelArtifactCases, extractExcelSearchTerms, 3);
+  }
+
+  if (artifact.id === "0g") {
+    return findBestCase(question, zgArtifactCases, extractZGSearchTerms, 2);
+  }
+
+  return null;
+}
+
+function findBestCase(
+  question: string,
+  artifactCases: KnowledgeArtifactCase[],
+  extractSearchTerms: (value: string) => Set<string>,
+  scoreThreshold: number
+): ArtifactCaseMatch | null {
   const queryTokens = tokenizeAgentText(question);
-  const searchTerms = extractExcelSearchTerms(question);
-  let bestMatch: ExcelCaseMatch | null = null;
+  const searchTerms = extractSearchTerms(question);
+  let bestMatch: ArtifactCaseMatch | null = null;
   let bestScore = 0;
 
-  for (const artifactCase of excelArtifactCases) {
-    const score = scoreExcelCase(queryTokens, searchTerms, artifactCase);
+  for (const artifactCase of artifactCases) {
+    const score = scoreArtifactCase(queryTokens, searchTerms, artifactCase, extractSearchTerms);
 
     if (score > bestScore) {
       bestMatch = {
@@ -495,10 +539,15 @@ function findBestExcelCase(question: string): ExcelCaseMatch | null {
     }
   }
 
-  return bestMatch !== null && bestMatch.score >= 3 ? bestMatch : null;
+  return bestMatch !== null && bestMatch.score >= scoreThreshold ? bestMatch : null;
 }
 
-function scoreExcelCase(queryTokens: Set<string>, querySearchTerms: Set<string>, artifactCase: ExcelArtifactCase) {
+function scoreArtifactCase(
+  queryTokens: Set<string>,
+  querySearchTerms: Set<string>,
+  artifactCase: KnowledgeArtifactCase,
+  extractSearchTerms: (value: string) => Set<string>
+) {
   const candidateText = [
     artifactCase.title,
     artifactCase.questionPattern,
@@ -508,7 +557,7 @@ function scoreExcelCase(queryTokens: Set<string>, querySearchTerms: Set<string>,
     artifactCase.answer
   ].join(" ");
   const candidateTokens = tokenizeAgentText(candidateText);
-  const candidateSearchTerms = extractExcelSearchTerms(candidateText);
+  const candidateSearchTerms = extractSearchTerms(candidateText);
   let score = countAgentTokenOverlap(queryTokens, candidateTokens);
 
   for (const term of querySearchTerms) {
@@ -544,12 +593,28 @@ function extractExcelSearchTerms(value: string) {
   return terms;
 }
 
+function extractZGSearchTerms(value: string) {
+  const terms = new Set<string>();
+
+  for (const { term, pattern } of zgSearchPatterns) {
+    if (pattern.test(value)) {
+      terms.add(term);
+    }
+  }
+
+  return terms;
+}
+
 function tokenizeAgentText(value: string) {
   return new Set(
     value
       .toLowerCase()
       .split(/[^a-z0-9]+/g)
-      .filter((token) => token.length >= 4 && !["with", "from", "what", "where", "when", "into"].includes(token))
+      .filter(
+        (token) =>
+          (token.length >= 4 || token === "0g" || token === "da") &&
+          !["with", "from", "what", "where", "when", "into"].includes(token)
+      )
   );
 }
 

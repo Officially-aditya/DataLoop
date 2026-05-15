@@ -1,6 +1,6 @@
 export type AgentArtifactDifficulty = "easy" | "medium" | "hard";
 export type AgentArtifactSource = "marketplace" | "upload";
-export type AgentArtifactDomain = "excel";
+export type AgentArtifactDomain = "excel" | "0g";
 export type AgentStorageStatus = "prepared" | "stored" | "unavailable";
 export type AgentProviderMode = "mock" | "0g-compute";
 export type AgentStorageNetwork = "testnet" | "mainnet";
